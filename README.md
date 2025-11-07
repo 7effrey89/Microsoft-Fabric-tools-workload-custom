@@ -3,6 +3,17 @@
 
 Welcome to the Microsoft Fabric Extensibility Toolkit. This repository contains everything you need to start creating a new Extension for Fabric. Beside the source code itself with a HelloWorld Sample it also contains a comprehensive guide that covers everything you need to know to create custom Fabric items for your organization. We're here to assist you every step of the way, so please don't hesitate to reach out with any questions, via "Issues" tab in this Github repository. Happy developing!
 
+## 🆕 AI Assistant Notebook Feature
+
+This repository now includes an **AI-powered notebook experience** integrated into the HelloWorld item! Features include:
+- **Three-panel layout**: Lakehouse selector, Notebook editor, and AI Assistant
+- **Azure OpenAI integration**: Generate PySpark code with AI assistance
+- **Spark execution**: Run code on Fabric's Spark engine with real-time output
+- **Iterative workflows**: Break down complex tasks into executable steps
+
+👉 **Quick Start**: See [QUICK_START_NOTEBOOK.md](./QUICK_START_NOTEBOOK.md) for testing instructions  
+📖 **Full Setup**: See [ASSISTANT_SETUP.md](./ASSISTANT_SETUP.md) for Azure OpenAI configuration
+
 [!NOTE]
 The Microsoft Fabric Extensibility Toolkit is an evolution of the Workload Development Kit. If you are starting from scratch we encourage customers and partners to start building using the new Extensibility Toolkit which is focusing on easy fast development and enables Fabric Fundamentals out of the box.
 
