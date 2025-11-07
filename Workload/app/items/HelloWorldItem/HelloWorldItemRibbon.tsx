@@ -7,7 +7,8 @@ import {
 import {
   Save24Regular,
   Settings24Regular,
-  Rocket24Regular
+  Rocket24Regular,
+  Code24Regular
 } from "@fluentui/react-icons";
 import { PageProps } from '../../App';
 import { CurrentView, VIEW_TYPES } from "./HelloWorldItemModel";
@@ -23,6 +24,7 @@ export interface HelloWorldItemRibbonProps extends PageProps {
   saveItemCallback: () => Promise<void>;
   openSettingsCallback: () => Promise<void>;
   navigateToGettingStartedCallback: () => void;
+  navigateToNotebookCallback?: () => void;
 }
 
 
@@ -36,6 +38,12 @@ const HelloWorldItemTabToolbar: React.FC<HelloWorldItemRibbonProps> = (props) =>
 
   const handleGettingStartedClick = () => {
     props.navigateToGettingStartedCallback();
+  };
+
+  const handleNotebookClick = () => {
+    if (props.navigateToNotebookCallback) {
+      props.navigateToNotebookCallback();
+    }
   };
 
   async function onSaveAsClicked() {
@@ -80,6 +88,20 @@ const HelloWorldItemTabToolbar: React.FC<HelloWorldItemRibbonProps> = (props) =>
           data-testid="item-editor-getting-started-btn"
           icon={<Rocket24Regular />}
           onClick={handleGettingStartedClick}
+        />
+      </Tooltip>
+      )}
+
+      {/* Notebook Button */}
+      {props.currentView !== VIEW_TYPES.NOTEBOOK && (
+      <Tooltip
+        content={t("ItemEditor_Ribbon_Notebook_Label", "Open Notebook")}
+        relationship="label">
+        <ToolbarButton
+          aria-label={t("ItemEditor_Ribbon_Notebook_Label", "Open Notebook")}
+          data-testid="item-editor-notebook-btn"
+          icon={<Code24Regular />}
+          onClick={handleNotebookClick}
         />
       </Tooltip>
       )}

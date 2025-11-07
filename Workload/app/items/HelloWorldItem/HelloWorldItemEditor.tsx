@@ -10,6 +10,9 @@ import { ItemEditorLoadingProgressBar } from "../../controls/ItemEditorLoadingPr
 import { HelloWorldItemDefinition, VIEW_TYPES, CurrentView } from "./HelloWorldItemModel";
 import { HelloWorldItemEditorEmpty } from "./HelloWorldItemEditorEmpty";
 import { HelloWorldItemEditorDefault } from "./HelloWorldItemEditorDefault";
+import { HelloWorldItemEditorNotebook } from "./HelloWorldItemEditorNotebook";
+import { NotebookCell } from "../../components/NotebookEditor";
+import { AssistantPlan } from "../../clients/AzureOpenAIClient";
 import "../../styles.scss";
 import { HelloWorldItemRibbon } from "./HelloWorldItemRibbon";
 
@@ -76,6 +79,10 @@ export function HelloWorldItemEditor(props: PageProps) {
     setCurrentView(VIEW_TYPES.GETTING_STARTED);
   };
 
+  const navigateToNotebook = () => {
+    setCurrentView(VIEW_TYPES.NOTEBOOK);
+  };
+
   const handleOpenSettings = async () => {
     if (item) {
       try {
@@ -92,7 +99,11 @@ export function HelloWorldItemEditor(props: PageProps) {
       workloadClient,
       item.id,
       {
-        state: VIEW_TYPES.GETTING_STARTED
+        state: currentView,
+        notebookCells: item.definition?.notebookCells,
+        assistantPlan: item.definition?.assistantPlan,
+        lakehouseId: item.definition?.lakehouseId,
+        lakehouseName: item.definition?.lakehouseName
       });
     const wasSaved = Boolean(successResult);
     setHasBeenSaved(wasSaved);
@@ -103,6 +114,32 @@ export function HelloWorldItemEditor(props: PageProps) {
       undefined,
       undefined
     );
+  }
+
+  async function SaveNotebookData(
+    cells: NotebookCell[],
+    plan?: AssistantPlan,
+    lakehouseId?: string
+  ) {
+    const updatedDefinition: HelloWorldItemDefinition = {
+      ...item.definition,
+      state: VIEW_TYPES.NOTEBOOK,
+      notebookCells: cells,
+      assistantPlan: plan,
+      lakehouseId: lakehouseId
+    };
+
+    await saveItemDefinition<HelloWorldItemDefinition>(
+      workloadClient,
+      item.id,
+      updatedDefinition
+    );
+
+    // Update local item state
+    setItem({
+      ...item,
+      definition: updatedDefinition
+    });
   }
 
   const isSaveEnabled = () => {
@@ -138,19 +175,28 @@ export function HelloWorldItemEditor(props: PageProps) {
   // Render appropriate view based on state
   return (
     <Stack className="editor" data-testid="item-editor-inner">
-      <HelloWorldItemRibbon
-        {...props}
-        isSaveButtonEnabled={isSaveEnabled()}
-        currentView={currentView}
-        saveItemCallback={SaveItem}
-        openSettingsCallback={handleOpenSettings}
-        navigateToGettingStartedCallback={navigateToGettingStarted}
-      />
+      {currentView !== VIEW_TYPES.NOTEBOOK && (
+        <HelloWorldItemRibbon
+          {...props}
+          isSaveButtonEnabled={isSaveEnabled()}
+          currentView={currentView}
+          saveItemCallback={SaveItem}
+          openSettingsCallback={handleOpenSettings}
+          navigateToGettingStartedCallback={navigateToGettingStarted}
+          navigateToNotebookCallback={navigateToNotebook}
+        />
+      )}
       {currentView === VIEW_TYPES.EMPTY ? (
         <HelloWorldItemEditorEmpty
           workloadClient={workloadClient}
           item={item}
           onNavigateToGettingStarted={navigateToGettingStarted}
+        />
+      ) : currentView === VIEW_TYPES.NOTEBOOK ? (
+        <HelloWorldItemEditorNotebook
+          workloadClient={workloadClient}
+          item={item}
+          onSave={SaveNotebookData}
         />
       ) : (
         <HelloWorldItemEditorDefault
