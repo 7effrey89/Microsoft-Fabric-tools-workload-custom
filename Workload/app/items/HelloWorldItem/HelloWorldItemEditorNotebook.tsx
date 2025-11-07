@@ -141,7 +141,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
       }
     }, 2000);
     return () => clearTimeout(timer);
-  }, [cells, plan, lakehouseId]);
+  }, [cells, plan, lakehouseId, onSave]);
 
   const initializeSparkSession = async () => {
     if (!item.workspaceId || !lakehouseId) return;
@@ -378,10 +378,14 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           id: uuidv4(),
           code,
         };
-        setCells([...cells, newCell]);
-
-        // Execute the cell
-        await handleCellExecute(newCell.id);
+        
+        // Add the cell and execute it after state update
+        setCells(prevCells => {
+          const updatedCells = [...prevCells, newCell];
+          // Execute the cell after a brief delay to ensure state is updated
+          setTimeout(() => handleCellExecute(newCell.id), 100);
+          return updatedCells;
+        });
 
         // Mark step as completed
         updatedSteps[plan.currentStepIndex] = {
@@ -390,7 +394,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           code,
         };
         setPlan({ ...plan, steps: updatedSteps });
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Error executing step:', error);
         const updatedSteps = [...plan.steps];
         updatedSteps[plan.currentStepIndex] = {

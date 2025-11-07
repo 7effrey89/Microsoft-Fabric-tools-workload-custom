@@ -45,7 +45,9 @@ export class AzureOpenAIClient {
 
     // Validate configuration
     if (!this.config.endpoint || !this.config.apiKey) {
-      console.warn('Azure OpenAI credentials not configured. Using mock responses. See ASSISTANT_SETUP.md for configuration.');
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Azure OpenAI credentials not configured. Using mock responses. See ASSISTANT_SETUP.md for configuration.');
+      }
     }
   }
 
