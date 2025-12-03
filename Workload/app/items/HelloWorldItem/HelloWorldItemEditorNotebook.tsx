@@ -147,6 +147,13 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
     item?.definition?.assistantPlan
   );
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [agentMode, setAgentMode] = useState(false);  // Agent Mode auto-executes next steps
+  
+  // Ref to track latest plan for use in async callbacks (avoids stale closure issues)
+  const planRef = useRef<AssistantPlan | undefined>(plan);
+  useEffect(() => {
+    planRef.current = plan;
+  }, [plan]);
 
   // Notebook cells state - for the interactive editor
   const [cells, setCells] = useState<NotebookCell[]>([
@@ -532,44 +539,283 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
   };
 
   const handleProceedToNextStep = async () => {
-    if (!plan || plan.currentStepIndex >= plan.steps.length) return;
+    // Use ref to get latest plan state (avoids stale closure issues in setTimeout callbacks)
+    const currentPlan = planRef.current;
+    if (!currentPlan || currentPlan.currentStepIndex >= currentPlan.steps.length) return;
 
-    const currentStep = plan.steps[plan.currentStepIndex];
+    const currentStep = currentPlan.steps[currentPlan.currentStepIndex];
+    const currentStepIndex = currentPlan.currentStepIndex;
     
     // Generate code for the current step
     try {
       const generatedCode = await aiClient.generateCode(currentStep);
       
-      // Add a new cell with the generated code
+      // Create a new cell with the generated code - mark as executing immediately
+      const newCellId = `cell-${Date.now()}`;
       const newCell: NotebookCell = {
-        id: `cell-${Date.now()}`,
+        id: newCellId,
         code: generatedCode,
         output: undefined,
-        isExecuting: false,
+        isExecuting: true, // Start executing immediately
         hasError: false,
       };
-      setCells([...cells, newCell]);
-
-      // Update step status
-      const updatedSteps = [...plan.steps];
-      updatedSteps[plan.currentStepIndex] = {
-        ...currentStep,
-        status: 'completed',
-      };
       
-      // Move to next step
-      setPlan({
-        ...plan,
-        steps: updatedSteps,
-        currentStepIndex: plan.currentStepIndex + 1,
-      });
+      // Add the cell to the notebook - use functional update to avoid stale closure
+      setCells(prevCells => [...prevCells, newCell]);
+      setIsExecutingCell(true);
 
-      await workloadClient.notification.open({
-        notificationType: 'success' as any,
-        title: 'Code Generated',
-        message: `Generated code for step ${plan.currentStepIndex + 1}`,
-        duration: 'short' as any,
-      });
+      // Update step status to running
+      const updatedSteps = [...currentPlan.steps];
+      updatedSteps[currentStepIndex] = {
+        ...currentStep,
+        status: 'running',
+      };
+      setPlan({ ...currentPlan, steps: updatedSteps });
+
+      // Execute the cell
+      const isLivyExecution = sessionState === 'idle' && sessionId && workspaceId && lakehouseId && livyClientRef.current;
+      
+      try {
+        let output: string;
+        let executionTime: number | undefined;
+
+        if (isLivyExecution) {
+          setSessionState('busy');
+
+          const statementResponse = await livyClientRef.current!.submitStatement(
+            workspaceId!,
+            lakehouseId!,
+            sessionId!,
+            { code: generatedCode, kind: 'pyspark' }
+          );
+
+          const result = await waitForStatementResult(
+            workspaceId!,
+            lakehouseId!,
+            sessionId!,
+            statementResponse.id!.toString()
+          );
+
+          output = result.output;
+          executionTime = result.executionTime;
+          setSessionState('idle');
+        } else {
+          // Simulate execution if not connected
+          const startTime = Date.now();
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          executionTime = Date.now() - startTime;
+          
+          output = '[Not connected to Livy - simulated output]\n';
+          if (generatedCode.includes('print(')) {
+            const printMatch = generatedCode.match(/print\(['"](.*)['"]/);
+            if (printMatch) {
+              output += printMatch[1];
+            }
+          } else if (generatedCode.includes('spark.')) {
+            output += 'DataFrame operations executed.';
+          } else {
+            output += 'Cell executed (connect to Livy for actual execution)';
+          }
+        }
+
+        // Update cell with output - success
+        setCells(prev => prev.map(c => 
+          c.id === newCellId ? { ...c, isExecuting: false, output, hasError: false, executionTime } : c
+        ));
+
+        // Store the result in the step for context
+        const stepWithResult = { ...currentStep, status: 'completed' as const, result: output, code: generatedCode };
+
+        // Review the execution result and decide how to proceed
+        const review = await aiClient.reviewAndRevise(currentPlan, stepWithResult, output, false);
+        
+        // Check if plan needs revision based on the output
+        if (review.needsRevision && review.revisedSteps && review.revisedSteps.length > 0) {
+          // Update plan with revised remaining steps
+          setPlan(prev => {
+            if (!prev) return prev;
+            const completedSteps = prev.steps.slice(0, currentStepIndex + 1);
+            completedSteps[currentStepIndex] = stepWithResult;
+            return {
+              ...prev,
+              steps: [...completedSteps, ...review.revisedSteps!],
+              currentStepIndex: currentStepIndex + 1
+            };
+          });
+
+          await workloadClient.notification.open({
+            notificationType: 'warning' as any,
+            title: 'Plan Revised',
+            message: `Based on the output, the remaining steps have been adjusted: ${review.analysis.substring(0, 100)}...`,
+            duration: 'long' as any,
+          });
+        } else {
+          // No revision needed, just mark as completed and move to next
+          const nextStepIndex = currentStepIndex + 1;
+          
+          setPlan(prev => {
+            if (!prev) return prev;
+            const steps = [...prev.steps];
+            steps[currentStepIndex] = stepWithResult;
+            return { ...prev, steps, currentStepIndex: nextStepIndex };
+          });
+
+          await workloadClient.notification.open({
+            notificationType: 'success' as any,
+            title: 'Step Completed',
+            message: `${review.analysis.substring(0, 100)}${review.analysis.length > 100 ? '...' : ''}`,
+            duration: 'short' as any,
+          });
+        }
+
+        // Agent Mode: automatically proceed to next step if enabled
+        // Calculate the new step index that will be set
+        const newStepIndex = currentStepIndex + 1;
+        const totalSteps = (review.needsRevision && review.revisedSteps) 
+          ? currentStepIndex + 1 + review.revisedSteps.length  // completed steps + revised remaining
+          : currentPlan.steps.length;
+        const hasMoreSteps = newStepIndex < totalSteps;
+          
+        if (agentMode && hasMoreSteps) {
+          // Wait for state to update, then use ref to get fresh plan
+          setTimeout(() => {
+            handleProceedToNextStep();
+          }, 500);
+        }
+
+      } catch (execError: any) {
+        console.error('Cell execution error:', execError);
+        
+        if (isLivyExecution) {
+          setSessionState('idle');
+        }
+
+        const errorOutput = execError.message || 'Execution failed';
+
+        // Update cell with error
+        setCells(prev => prev.map(c => 
+          c.id === newCellId ? { 
+            ...c, 
+            isExecuting: false, 
+            output: `Error: ${errorOutput}`, 
+            hasError: true,
+            executionTime: execError.executionTime
+          } : c
+        ));
+
+        // Review the error and try to get correction code
+        const stepWithError = { ...currentStep, code: generatedCode, error: errorOutput };
+        const review = await aiClient.reviewAndRevise(currentPlan, stepWithError, errorOutput, true);
+
+        if (review.correctionCode && agentMode) {
+          // Agent Mode: automatically try to fix the error
+          await workloadClient.notification.open({
+            notificationType: 'warning' as any,
+            title: 'Error Detected - Attempting Fix',
+            message: review.analysis.substring(0, 100),
+            duration: 'short' as any,
+          });
+
+          // Create a new cell with the correction code
+          const correctionCellId = `cell-${Date.now()}`;
+          const correctionCell: NotebookCell = {
+            id: correctionCellId,
+            code: review.correctionCode,
+            output: undefined,
+            isExecuting: true,
+            hasError: false,
+          };
+          setCells(prev => [...prev, correctionCell]);
+
+          // Execute the correction code
+          try {
+            let correctionOutput: string;
+            let correctionTime: number | undefined;
+
+            if (isLivyExecution) {
+              setSessionState('busy');
+              const statementResponse = await livyClientRef.current!.submitStatement(
+                workspaceId!,
+                lakehouseId!,
+                sessionId!,
+                { code: review.correctionCode, kind: 'pyspark' }
+              );
+              const result = await waitForStatementResult(
+                workspaceId!,
+                lakehouseId!,
+                sessionId!,
+                statementResponse.id!.toString()
+              );
+              correctionOutput = result.output;
+              correctionTime = result.executionTime;
+              setSessionState('idle');
+            } else {
+              const startTime = Date.now();
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              correctionTime = Date.now() - startTime;
+              correctionOutput = '[Simulated correction output]';
+            }
+
+            // Update correction cell with success
+            setCells(prev => prev.map(c => 
+              c.id === correctionCellId ? { ...c, isExecuting: false, output: correctionOutput, hasError: false, executionTime: correctionTime } : c
+            ));
+
+            // Mark step as completed after successful correction
+            const nextStepIndex = currentStepIndex + 1;
+            const hasMoreSteps = nextStepIndex < currentPlan.steps.length;
+            
+            setPlan(prev => {
+              if (!prev) return prev;
+              const steps = [...prev.steps];
+              steps[currentStepIndex] = { ...currentStep, status: 'completed', result: correctionOutput };
+              return { ...prev, steps, currentStepIndex: nextStepIndex };
+            });
+
+            await workloadClient.notification.open({
+              notificationType: 'success' as any,
+              title: 'Error Fixed',
+              message: 'The correction was successful. Continuing with the plan.',
+              duration: 'short' as any,
+            });
+
+            // Continue to next step - use ref for fresh state
+            if (agentMode && hasMoreSteps) {
+              setTimeout(() => {
+                handleProceedToNextStep();
+              }, 500);
+            }
+
+          } catch (correctionError: any) {
+            // Correction also failed
+            setCells(prev => prev.map(c => 
+              c.id === correctionCellId ? { 
+                ...c, 
+                isExecuting: false, 
+                output: `Correction failed: ${correctionError.message}`, 
+                hasError: true 
+              } : c
+            ));
+
+            setPlan(prev => {
+              if (!prev) return prev;
+              const steps = [...prev.steps];
+              steps[currentStepIndex] = { ...currentStep, status: 'failed', error: 'Correction attempt also failed' };
+              return { ...prev, steps };
+            });
+          }
+        } else {
+          // No correction available or agent mode disabled, just mark as failed
+          setPlan(prev => {
+            if (!prev) return prev;
+            const steps = [...prev.steps];
+            steps[currentStepIndex] = { ...currentStep, status: 'failed', error: errorOutput };
+            return { ...prev, steps };
+          });
+        }
+      } finally {
+        setIsExecutingCell(false);
+      }
 
     } catch (error: any) {
       console.error('Error generating code:', error);
@@ -580,13 +826,13 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         duration: 'long' as any,
       });
 
-      const updatedSteps = [...plan.steps];
-      updatedSteps[plan.currentStepIndex] = {
+      const updatedSteps = [...currentPlan.steps];
+      updatedSteps[currentStepIndex] = {
         ...currentStep,
         status: 'failed',
         error: error.message,
       };
-      setPlan({ ...plan, steps: updatedSteps });
+      setPlan({ ...currentPlan, steps: updatedSteps });
     }
   };
 
@@ -789,6 +1035,8 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           onGeneratePlan={handleGeneratePlan}
           onProceedToNextStep={handleProceedToNextStep}
           onRegeneratePlan={handleRegeneratePlan}
+          agentMode={agentMode}
+          onAgentModeChange={setAgentMode}
         />
       </div>
     </div>

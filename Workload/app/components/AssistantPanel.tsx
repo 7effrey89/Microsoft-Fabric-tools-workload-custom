@@ -11,6 +11,7 @@ import {
   shorthands,
   Tooltip,
   Spinner,
+  Switch,
 } from '@fluentui/react-components';
 import {
   Sparkle24Regular,
@@ -127,6 +128,8 @@ export interface AssistantPanelProps {
   onGeneratePlan?: (task: string) => void;
   onProceedToNextStep?: () => void;
   onRegeneratePlan?: () => void;
+  agentMode?: boolean;
+  onAgentModeChange?: (enabled: boolean) => void;
 }
 
 export const AssistantPanel: React.FC<AssistantPanelProps> = ({
@@ -135,6 +138,8 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   onGeneratePlan,
   onProceedToNextStep,
   onRegeneratePlan,
+  agentMode,
+  onAgentModeChange,
 }) => {
   const styles = useStyles();
   const [taskInput, setTaskInput] = useState('');
@@ -324,6 +329,21 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
               ✓ All steps completed!
             </Text>
           )}
+          <Divider style={{ margin: '8px 0' }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Tooltip 
+              content="When enabled, automatically executes the next step after each successful execution"
+              relationship="description"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Switch 
+                  checked={agentMode || false}
+                  onChange={(_, data) => onAgentModeChange?.(data.checked)}
+                />
+                <Text size={200} weight="semibold">Agent Mode</Text>
+              </div>
+            </Tooltip>
+          </div>
           <Button appearance="subtle" onClick={onRegeneratePlan} disabled={isGeneratingPlan}>
             Start New Task
           </Button>

@@ -19,6 +19,16 @@ export interface AssistantStep {
   status: 'pending' | 'running' | 'completed' | 'failed';
   result?: string;
   error?: string;
+  expectedOutcome?: string;  // What we expect from this step
+}
+
+export interface StepReviewResult {
+  success: boolean;
+  analysis: string;
+  needsRevision: boolean;
+  revisedSteps?: AssistantStep[];  // Updated remaining steps if revision needed
+  correctionCode?: string;  // Code to fix an error
+  shouldRetry: boolean;
 }
 
 export interface AzureOpenAIConfig {
@@ -89,6 +99,31 @@ export class AzureOpenAIClient {
       console.error('Error generating code:', error);
       // Fall back to mock code on error
       return this.getMockCode(step);
+    }
+  }
+
+  /**
+   * Review execution result and revise the plan if needed
+   * This is the key method for adaptive execution
+   */
+  async reviewAndRevise(
+    plan: AssistantPlan,
+    executedStep: AssistantStep,
+    output: string,
+    wasError: boolean
+  ): Promise<StepReviewResult> {
+    // If credentials not configured, return mock review
+    if (!this.config.endpoint || !this.config.apiKey) {
+      return this.getMockReview(wasError, output);
+    }
+
+    try {
+      const prompt = this.buildReviewPrompt(plan, executedStep, output, wasError);
+      const response = await this.callAzureOpenAI(prompt);
+      return this.parseReviewResponse(response, plan);
+    } catch (error) {
+      console.error('Error reviewing result:', error);
+      return this.getMockReview(wasError, output);
     }
   }
 
@@ -216,6 +251,134 @@ Respond with JSON:
   "feedback": "Brief feedback on the result",
   "shouldRetry": true/false
 }`;
+  }
+
+  /**
+   * Build prompt for reviewing execution results and revising the plan
+   */
+  private buildReviewPrompt(
+    plan: AssistantPlan,
+    executedStep: AssistantStep,
+    output: string,
+    wasError: boolean
+  ): string {
+    const remainingSteps = plan.steps
+      .slice(plan.currentStepIndex + 1)
+      .map((s, i) => `${i + 1}. ${s.description}`)
+      .join('\n');
+
+    const completedSteps = plan.steps
+      .slice(0, plan.currentStepIndex + 1)
+      .map((s, i) => `${i + 1}. ${s.description} - ${s.status}${s.result ? ` (Result: ${s.result.substring(0, 200)}...)` : ''}`)
+      .join('\n');
+
+    return `You are an AI agent executing a data analysis plan step by step. Review the execution result and decide how to proceed.
+
+GOAL: ${plan.goal}
+
+COMPLETED STEPS:
+${completedSteps}
+
+JUST EXECUTED:
+Step: ${executedStep.description}
+Code: ${executedStep.code || 'N/A'}
+${wasError ? 'ERROR OUTPUT' : 'OUTPUT'}: ${output.substring(0, 2000)}${output.length > 2000 ? '...(truncated)' : ''}
+
+REMAINING STEPS:
+${remainingSteps || 'None'}
+
+INSTRUCTIONS:
+1. Analyze the output - did the step accomplish what was intended?
+2. If there was an error, determine if it can be fixed with corrective code
+3. Based on the output (e.g., data schema, row counts, column names discovered), decide if the remaining steps need adjustment
+4. Consider if additional steps are needed to achieve the goal
+
+Respond with JSON:
+{
+  "success": ${wasError ? 'false' : 'true or false based on output analysis'},
+  "analysis": "Brief analysis of what the output tells us and how it affects the plan",
+  "needsRevision": true/false,
+  "revisedSteps": [
+    {"description": "Step description"}
+  ],
+  "correctionCode": "If there was an error, provide PySpark code to fix it. Otherwise null",
+  "shouldRetry": true/false
+}
+
+IMPORTANT:
+- If needsRevision is true, provide the COMPLETE list of remaining steps (revised)
+- If the output reveals new information (column names, data types, etc.), use that in revised steps
+- If correctionCode is provided, it should fix the error and achieve the original step's goal
+- Keep the plan focused on the original goal`;
+  }
+
+  /**
+   * Parse review response from Azure OpenAI
+   */
+  private parseReviewResponse(response: string, plan: AssistantPlan): StepReviewResult {
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
+      }
+      
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      let revisedSteps: AssistantStep[] | undefined;
+      if (parsed.needsRevision && parsed.revisedSteps && Array.isArray(parsed.revisedSteps)) {
+        revisedSteps = parsed.revisedSteps.map((step: any, index: number) => ({
+          id: `step-${plan.currentStepIndex + 1 + index}`,
+          description: step.description,
+          status: 'pending' as const
+        }));
+      }
+
+      return {
+        success: parsed.success ?? true,
+        analysis: parsed.analysis || 'Analysis completed',
+        needsRevision: parsed.needsRevision ?? false,
+        revisedSteps,
+        correctionCode: parsed.correctionCode || undefined,
+        shouldRetry: parsed.shouldRetry ?? false
+      };
+    } catch (error) {
+      console.error('Error parsing review response:', error);
+      return {
+        success: true,
+        analysis: 'Unable to parse review response',
+        needsRevision: false,
+        shouldRetry: false
+      };
+    }
+  }
+
+  /**
+   * Get mock review for demo/testing purposes
+   */
+  private getMockReview(wasError: boolean, output: string): StepReviewResult {
+    if (wasError) {
+      return {
+        success: false,
+        analysis: 'An error occurred during execution. The agent will attempt to fix it.',
+        needsRevision: false,
+        correctionCode: `# Attempting to fix the error
+# Original error: ${output.substring(0, 100)}...
+try:
+    # Retry with error handling
+    print("Retrying with additional error handling...")
+except Exception as e:
+    print(f"Error: {e}")`,
+        shouldRetry: true
+      };
+    }
+    
+    return {
+      success: true,
+      analysis: 'Step completed successfully. The output looks as expected.',
+      needsRevision: false,
+      shouldRetry: false
+    };
   }
 
   /**
