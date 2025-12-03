@@ -342,27 +342,30 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
     ));
     setIsExecutingCell(true);
 
+    // Track if we're executing via Livy
+    const isLivyExecution = sessionState === 'idle' && sessionId && workspaceId && lakehouseId && livyClientRef.current;
+
     try {
       let output: string;
 
       // Check if connected to Livy
-      if (sessionState === 'idle' && sessionId && workspaceId && lakehouseId && livyClientRef.current) {
+      if (isLivyExecution) {
         // Execute against Livy
         console.log('[Livy] Submitting statement:', cell.code.substring(0, 100));
         setSessionState('busy');
 
-        const statementResponse = await livyClientRef.current.submitStatement(
-          workspaceId,
-          lakehouseId,
-          sessionId,
+        const statementResponse = await livyClientRef.current!.submitStatement(
+          workspaceId!,
+          lakehouseId!,
+          sessionId!,
           { code: cell.code, kind: 'pyspark' }
         );
 
         // Wait for statement to complete
         output = await waitForStatementResult(
-          workspaceId,
-          lakehouseId,
-          sessionId,
+          workspaceId!,
+          lakehouseId!,
+          sessionId!,
           statementResponse.id!.toString()
         );
 
@@ -393,11 +396,15 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
     } catch (error: any) {
       console.error('Cell execution error:', error);
+      // Always reset session state to idle if we were executing via Livy
+      if (isLivyExecution) {
+        setSessionState('idle');
+      }
       setCells(cells.map(c => 
         c.id === cellId ? { 
           ...c, 
           isExecuting: false, 
-          output: error.message || 'Execution failed', 
+          output: `Error: ${error.message || 'Execution failed'}`, 
           hasError: true 
         } : c
       ));
@@ -421,11 +428,15 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
     while (attempts < maxAttempts) {
       const statement = await livyClientRef.current!.getStatement(wsId, lhId, sessId, stmtId);
+      console.log(`[Livy] Statement status (attempt ${attempts + 1}):`, JSON.stringify(statement, null, 2));
+      
       const state = statement.state?.toLowerCase();
 
       if (state === 'available') {
         // Extract output from statement
         const output = statement.output;
+        console.log(`[Livy] Statement output:`, JSON.stringify(output, null, 2));
+        
         if (output?.status === 'ok') {
           const data = output.data;
           if (data && data['text/plain']) {
@@ -435,11 +446,14 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         } else if (output?.status === 'error') {
           // Check for error details in data
           const errorData = output.data;
-          const errorMsg = errorData?.['text/plain'] || errorData?.['ename'] || 'Execution error';
+          const errorMsg = errorData?.['text/plain'] || errorData?.['ename'] || errorData?.evalue || 'Execution error';
+          const traceback = errorData?.traceback;
+          console.error(`[Livy] Statement error:`, errorMsg, traceback);
           throw new Error(errorMsg);
         }
         return 'Execution completed';
       } else if (state === 'error' || state === 'cancelled') {
+        console.error(`[Livy] Statement in ${state} state`);
         throw new Error(`Statement ${state}`);
       }
 
