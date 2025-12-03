@@ -421,3 +421,9 @@ Workload/node_modules/*
 Workload/package-lock.json
 Workload/dist/*
 
+
+# Environment files with secrets
+Workload/.env.dev
+Workload/.env.prod
+Workload/.env.local
+*.env.local
