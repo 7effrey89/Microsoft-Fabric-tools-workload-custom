@@ -338,7 +338,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
     // Mark cell as executing
     setCells(cells.map(c => 
-      c.id === cellId ? { ...c, isExecuting: true, output: undefined, hasError: false } : c
+      c.id === cellId ? { ...c, isExecuting: true, output: undefined, hasError: false, executionTime: undefined } : c
     ));
     setIsExecutingCell(true);
 
@@ -347,6 +347,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
     try {
       let output: string;
+      let executionTime: number | undefined;
 
       // Check if connected to Livy
       if (isLivyExecution) {
@@ -361,18 +362,23 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         );
 
         // Wait for statement to complete
-        output = await waitForStatementResult(
+        const result = await waitForStatementResult(
           workspaceId!,
           lakehouseId!,
           sessionId!,
           statementResponse.id!.toString()
         );
 
+        output = result.output;
+        executionTime = result.executionTime;
+
         setSessionState('idle');
       } else {
         // Simulate execution if not connected
         // console.log('[Simulated] Executing cell:', cell.code.substring(0, 100));
+        const startTime = Date.now();
         await new Promise(resolve => setTimeout(resolve, 1500));
+        executionTime = Date.now() - startTime;
         
         // Simulate output based on code content
         output = '[Not connected to Livy - simulated output]\n';
@@ -390,7 +396,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
       // Update cell with output
       setCells(cells.map(c => 
-        c.id === cellId ? { ...c, isExecuting: false, output, hasError: false } : c
+        c.id === cellId ? { ...c, isExecuting: false, output, hasError: false, executionTime } : c
       ));
 
     } catch (error: any) {
@@ -404,7 +410,8 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           ...c, 
           isExecuting: false, 
           output: `Error: ${error.message || 'Execution failed'}`, 
-          hasError: true 
+          hasError: true,
+          executionTime: error.executionTime // Include execution time even for errors
         } : c
       ));
     } finally {
@@ -416,12 +423,18 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
     setCells(cells.filter(c => c.id !== cellId));
   };
 
+  // Result type for statement execution
+  interface StatementResult {
+    output: string;
+    executionTime?: number; // in milliseconds
+  }
+
   const waitForStatementResult = async (
     wsId: string,
     lhId: string,
     sessId: string,
     stmtId: string
-  ): Promise<string> => {
+  ): Promise<StatementResult> => {
     const maxAttempts = 120; // 10 minutes max
     let attempts = 0;
 
@@ -431,6 +444,11 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
       
       const state = statement.state?.toLowerCase();
 
+      // Calculate execution time if available
+      const executionTime = (statement.started && statement.completed) 
+        ? statement.completed - statement.started 
+        : undefined;
+
       if (state === 'available') {
         const output = statement.output;
         // console.log(`[Livy] Statement output:`, JSON.stringify(output, null, 2));
@@ -438,19 +456,50 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         if (output?.status === 'ok') {
           const data = output.data;
           if (data && data['text/plain']) {
-            return data['text/plain'];
+            return { output: data['text/plain'], executionTime };
           }
-          return JSON.stringify(data, null, 2);
+          return { output: JSON.stringify(data, null, 2), executionTime };
         } else if (output?.status === 'error') {
-          const errorData = output.data;
-          const errorMsg = errorData?.['text/plain'] || errorData?.['ename'] || errorData?.evalue || 'Execution error';
-          // const traceback = errorData?.traceback;
-          // console.error(`[Livy] Statement error:`, errorMsg, traceback);
-          throw new Error(errorMsg);
+          // Extract detailed error information from Livy response
+          // Error fields can be at output level or nested in output.data
+          const ename = output.ename || output.data?.ename || 'Error';
+          const evalue = output.evalue || output.data?.evalue || '';
+          const traceback = output.traceback || output.data?.traceback || [];
+          
+          // Build a detailed error message similar to Python/Fabric notebook errors
+          let errorMessage = `${ename}: ${evalue}`;
+          
+          // Add traceback if available
+          if (traceback && traceback.length > 0) {
+            errorMessage += '\n\nTraceback:\n' + traceback.join('\n');
+          }
+          
+          // Fallback to text/plain if no structured error info
+          if (!evalue && output.data?.['text/plain']) {
+            errorMessage = output.data['text/plain'];
+          }
+          
+          const error = new Error(errorMessage) as any;
+          error.executionTime = executionTime;
+          throw error;
         }
-        return 'Execution completed';
+        return { output: 'Execution completed', executionTime };
       } else if (state === 'error' || state === 'cancelled') {
-        // console.error(`[Livy] Statement in ${state} state`);
+        // Check if there's output with error details even in error state
+        const output = statement.output;
+        if (output) {
+          const ename = output.ename || output.data?.ename || 'Error';
+          const evalue = output.evalue || output.data?.evalue || `Statement ${state}`;
+          const traceback = output.traceback || output.data?.traceback || [];
+          
+          let errorMessage = `${ename}: ${evalue}`;
+          if (traceback && traceback.length > 0) {
+            errorMessage += '\n\nTraceback:\n' + traceback.join('\n');
+          }
+          const error = new Error(errorMessage) as any;
+          error.executionTime = executionTime;
+          throw error;
+        }
         throw new Error(`Statement ${state}`);
       }
 

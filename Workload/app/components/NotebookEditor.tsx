@@ -66,13 +66,18 @@ const useStyles = makeStyles({
   cellOutput: {
     ...shorthands.padding('12px'),
     backgroundColor: tokens.colorNeutralBackground2,
-    fontFamily: 'monospace',
+    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
     fontSize: '12px',
+    lineHeight: '1.5',
     whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    maxHeight: '400px',
+    overflowY: 'auto',
     ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke1),
   },
   cellOutputError: {
     color: tokens.colorPaletteRedForeground1,
+    backgroundColor: tokens.colorPaletteRedBackground1,
   },
   cellOutputSuccess: {
     color: tokens.colorNeutralForeground1,
@@ -94,6 +99,7 @@ export interface NotebookCell {
   output?: string;
   isExecuting?: boolean;
   hasError?: boolean;
+  executionTime?: number; // Execution time in milliseconds
 }
 
 export interface NotebookEditorProps {
@@ -219,10 +225,22 @@ export const NotebookEditor: React.FC<NotebookEditorProps> = ({
                       </div>
                     ) : (
                       <>
-                        <Text size={200} weight="semibold">
-                          {cell.hasError ? 'Error:' : 'Output:'}
-                        </Text>
-                        <pre style={{ margin: '4px 0 0 0' }}>{cell.output}</pre>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <Text size={200} weight="semibold">
+                            {cell.hasError ? 'Error:' : 'Output:'}
+                          </Text>
+                          {cell.executionTime !== undefined && (
+                            <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+                              {cell.executionTime < 1000 
+                                ? `${cell.executionTime}ms`
+                                : cell.executionTime < 60000
+                                  ? `${(cell.executionTime / 1000).toFixed(2)}s`
+                                  : `${Math.floor(cell.executionTime / 60000)}m ${((cell.executionTime % 60000) / 1000).toFixed(0)}s`
+                              }
+                            </Text>
+                          )}
+                        </div>
+                        <pre style={{ margin: '0' }}>{cell.output}</pre>
                       </>
                     )}
                   </div>
