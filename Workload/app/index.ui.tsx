@@ -9,6 +9,34 @@ import { fabricLightTheme } from "./theme";
 import { App } from "./App";
 import { callGetItem } from "./controller/ItemCRUDController"
 
+// Suppress ResizeObserver loop error - this is a benign warning from Monaco Editor/Fluent UI
+// that occurs when ResizeObserver callbacks can't be delivered in a single animation frame
+// We need to patch ResizeObserver itself to prevent the error from being thrown
+const OriginalResizeObserver = window.ResizeObserver;
+window.ResizeObserver = class ResizeObserver extends OriginalResizeObserver {
+    constructor(callback: ResizeObserverCallback) {
+        super((entries, observer) => {
+            // Use requestAnimationFrame to batch the callback and prevent the loop error
+            window.requestAnimationFrame(() => {
+                try {
+                    callback(entries, observer);
+                } catch (e) {
+                    // Silently ignore ResizeObserver callback errors
+                }
+            });
+        });
+    }
+};
+
+// Also catch any errors that slip through
+const resizeObserverError = (e: ErrorEvent) => {
+    if (e.message?.includes('ResizeObserver loop')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+    }
+};
+window.addEventListener('error', resizeObserverError, true);
+
 export async function initialize(params: InitParams) {
     console.log('🚀 UI initialization started with params:', params);
     
