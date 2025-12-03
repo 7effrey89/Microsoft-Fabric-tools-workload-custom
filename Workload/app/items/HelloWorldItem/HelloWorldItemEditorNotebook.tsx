@@ -350,8 +350,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
       // Check if connected to Livy
       if (isLivyExecution) {
-        // Execute against Livy
-        console.log('[Livy] Submitting statement:', cell.code.substring(0, 100));
+        // console.log('[Livy] Submitting statement:', cell.code.substring(0, 100));
         setSessionState('busy');
 
         const statementResponse = await livyClientRef.current!.submitStatement(
@@ -372,7 +371,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         setSessionState('idle');
       } else {
         // Simulate execution if not connected
-        console.log('[Simulated] Executing cell:', cell.code.substring(0, 100));
+        // console.log('[Simulated] Executing cell:', cell.code.substring(0, 100));
         await new Promise(resolve => setTimeout(resolve, 1500));
         
         // Simulate output based on code content
@@ -428,14 +427,13 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
     while (attempts < maxAttempts) {
       const statement = await livyClientRef.current!.getStatement(wsId, lhId, sessId, stmtId);
-      console.log(`[Livy] Statement status (attempt ${attempts + 1}):`, JSON.stringify(statement, null, 2));
+      // console.log(`[Livy] Statement status (attempt ${attempts + 1}):`, JSON.stringify(statement, null, 2));
       
       const state = statement.state?.toLowerCase();
 
       if (state === 'available') {
-        // Extract output from statement
         const output = statement.output;
-        console.log(`[Livy] Statement output:`, JSON.stringify(output, null, 2));
+        // console.log(`[Livy] Statement output:`, JSON.stringify(output, null, 2));
         
         if (output?.status === 'ok') {
           const data = output.data;
@@ -444,16 +442,15 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           }
           return JSON.stringify(data, null, 2);
         } else if (output?.status === 'error') {
-          // Check for error details in data
           const errorData = output.data;
           const errorMsg = errorData?.['text/plain'] || errorData?.['ename'] || errorData?.evalue || 'Execution error';
-          const traceback = errorData?.traceback;
-          console.error(`[Livy] Statement error:`, errorMsg, traceback);
+          // const traceback = errorData?.traceback;
+          // console.error(`[Livy] Statement error:`, errorMsg, traceback);
           throw new Error(errorMsg);
         }
         return 'Execution completed';
       } else if (state === 'error' || state === 'cancelled') {
-        console.error(`[Livy] Statement in ${state} state`);
+        // console.error(`[Livy] Statement in ${state} state`);
         throw new Error(`Statement ${state}`);
       }
 
