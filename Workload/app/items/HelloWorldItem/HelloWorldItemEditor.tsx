@@ -11,7 +11,7 @@ import { HelloWorldItemDefinition, VIEW_TYPES, CurrentView } from "./HelloWorldI
 import { HelloWorldItemEditorEmpty } from "./HelloWorldItemEditorEmpty";
 import { HelloWorldItemEditorDefault } from "./HelloWorldItemEditorDefault";
 import { HelloWorldItemEditorNotebook } from "./HelloWorldItemEditorNotebook";
-import { NotebookCell } from "../../components/NotebookEditor";
+
 import { AssistantPlan } from "../../clients/AzureOpenAIClient";
 import "../../styles.scss";
 import { HelloWorldItemRibbon } from "./HelloWorldItemRibbon";
@@ -117,16 +117,16 @@ export function HelloWorldItemEditor(props: PageProps) {
   }
 
   async function SaveNotebookData(
-    cells: NotebookCell[],
     plan?: AssistantPlan,
-    lakehouseId?: string
+    lakehouseId?: string,
+    notebookId?: string
   ) {
     const updatedDefinition: HelloWorldItemDefinition = {
       ...item.definition,
       state: VIEW_TYPES.NOTEBOOK,
-      notebookCells: cells,
       assistantPlan: plan,
-      lakehouseId: lakehouseId
+      lakehouseId: lakehouseId,
+      notebookId: notebookId
     };
 
     await saveItemDefinition<HelloWorldItemDefinition>(

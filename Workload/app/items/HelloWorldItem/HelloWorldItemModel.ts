@@ -7,6 +7,8 @@ export interface HelloWorldItemDefinition  {
   assistantPlan?: AssistantPlan;
   lakehouseId?: string;
   lakehouseName?: string;
+  notebookId?: string;
+  notebookName?: string;
 }
 
 export const VIEW_TYPES = {
