@@ -120,7 +120,7 @@ const useStyles = makeStyles({
 interface HelloWorldItemEditorNotebookProps {
   workloadClient: WorkloadClientAPI;
   item: ItemWithDefinition<HelloWorldItemDefinition>;
-  onSave?: (plan?: AssistantPlan) => Promise<void>;
+  onSave?: (plan?: AssistantPlan, cells?: NotebookCell[]) => Promise<void>;
 }
 
 export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebookProps> = ({
@@ -161,16 +161,19 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
   const stoppedRef = useRef(false);  // Track if execution was stopped by user
 
   // Notebook cells state - for the interactive editor
-  const [cells, setCells] = useState<NotebookCell[]>([
-    {
-      id: 'cell-1',
-      code: '# Welcome to the AI Notebook Assistant\n# Write your PySpark code here and click Run to execute\n\nprint("Hello from Spark!")',
-      output: undefined,
-      isExecuting: false,
-      hasError: false,
-    }
-  ]);
+  const [cells, setCells] = useState<NotebookCell[]>(
+    item?.definition?.notebookCells && item.definition.notebookCells.length > 0
+      ? item.definition.notebookCells
+      : [{
+          id: 'cell-1',
+          code: '# Welcome to the AI Notebook Assistant\n# Write your PySpark code here and click Run to execute\n\nprint("Hello from Spark!")',
+          output: undefined,
+          isExecuting: false,
+          hasError: false,
+        }]
+  );
   const [isExecutingCell, setIsExecutingCell] = useState(false);
+  const [selectedCellId, setSelectedCellId] = useState<string | undefined>();
 
   // Clients
   const aiClient = new AzureOpenAIClient();
@@ -181,15 +184,15 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
     livyClientRef.current = new SparkLivyClient(workloadClient);
   }, [workloadClient]);
 
-  // Auto-save when plan changes
+  // Auto-save when plan or cells change
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (onSave && plan) {
-        onSave(plan);
+      if (onSave) {
+        onSave(plan, cells);
       }
     }, 2000);
     return () => clearTimeout(timer);
-  }, [plan, onSave]);
+  }, [plan, cells, onSave]);
 
   // ============ LIVY CONNECTION MANAGEMENT ============
 
@@ -333,7 +336,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
   // ============ NOTEBOOK CELL MANAGEMENT ============
 
-  const handleAddCell = () => {
+  const handleAddCell = (afterCellId?: string) => {
     const newCell: NotebookCell = {
       id: `cell-${Date.now()}`,
       code: '# Write your PySpark code here\n',
@@ -341,7 +344,26 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
       isExecuting: false,
       hasError: false,
     };
-    setCells([...cells, newCell]);
+    
+    if (afterCellId) {
+      // Insert after the specified cell
+      const index = cells.findIndex(c => c.id === afterCellId);
+      if (index !== -1) {
+        const newCells = [...cells];
+        newCells.splice(index + 1, 0, newCell);
+        setCells(newCells);
+      } else {
+        setCells([...cells, newCell]);
+      }
+    } else {
+      // Add at the beginning if no afterCellId (for "add above" first cell)
+      if (cells.length === 0) {
+        setCells([newCell]);
+      } else {
+        setCells([newCell, ...cells]);
+      }
+    }
+    setSelectedCellId(newCell.id);
   };
 
   const handleCellCodeChange = (cellId: string, code: string) => {
@@ -441,6 +463,45 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
   const handleCellDelete = (cellId: string) => {
     setCells(cells.filter(c => c.id !== cellId));
+  };
+
+  const handleMoveCell = (cellId: string, direction: 'up' | 'down') => {
+    const index = cells.findIndex(c => c.id === cellId);
+    if (index === -1) return;
+    
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= cells.length) return;
+    
+    const newCells = [...cells];
+    [newCells[index], newCells[newIndex]] = [newCells[newIndex], newCells[index]];
+    setCells(newCells);
+  };
+
+  const handleRunAllCells = async () => {
+    for (const cell of cells) {
+      if (stoppedRef.current) break;
+      if (cell.code.trim()) {
+        await handleCellExecute(cell.id);
+      }
+    }
+  };
+
+  const handleRunCellsBelow = async (fromCellId: string, includeCurrent: boolean) => {
+    const startIndex = cells.findIndex(c => c.id === fromCellId);
+    if (startIndex === -1) return;
+    
+    const cellsToRun = includeCurrent ? cells.slice(startIndex) : cells.slice(startIndex + 1);
+    
+    for (const cell of cellsToRun) {
+      if (stoppedRef.current) break;
+      if (cell.code.trim()) {
+        await handleCellExecute(cell.id);
+      }
+    }
+  };
+
+  const handleClearAllOutputs = () => {
+    setCells(cells.map((c): NotebookCell => ({ ...c, output: undefined, hasError: false, executionTime: undefined })));
   };
 
   // Result type for statement execution
@@ -1053,7 +1114,13 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           onCellExecute={handleCellExecute}
           onCellDelete={handleCellDelete}
           onAddCell={handleAddCell}
+          onMoveCell={handleMoveCell}
+          onRunAllCells={handleRunAllCells}
+          onRunCellsBelow={handleRunCellsBelow}
+          onClearAllOutputs={handleClearAllOutputs}
           isExecuting={isExecutingCell}
+          selectedCellId={selectedCellId}
+          onSelectCell={setSelectedCellId}
         />
       </div>
 

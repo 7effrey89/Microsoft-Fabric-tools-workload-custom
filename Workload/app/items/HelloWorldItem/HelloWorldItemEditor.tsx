@@ -13,6 +13,7 @@ import { HelloWorldItemEditorDefault } from "./HelloWorldItemEditorDefault";
 import { HelloWorldItemEditorNotebook } from "./HelloWorldItemEditorNotebook";
 
 import { AssistantPlan } from "../../clients/AzureOpenAIClient";
+import { NotebookCell } from "../../components/NotebookEditor";
 import "../../styles.scss";
 import { HelloWorldItemRibbon } from "./HelloWorldItemRibbon";
 
@@ -118,15 +119,13 @@ export function HelloWorldItemEditor(props: PageProps) {
 
   async function SaveNotebookData(
     plan?: AssistantPlan,
-    lakehouseId?: string,
-    notebookId?: string
+    cells?: NotebookCell[]
   ) {
     const updatedDefinition: HelloWorldItemDefinition = {
       ...item.definition,
       state: VIEW_TYPES.NOTEBOOK,
       assistantPlan: plan,
-      lakehouseId: lakehouseId,
-      notebookId: notebookId
+      notebookCells: cells,
     };
 
     await saveItemDefinition<HelloWorldItemDefinition>(
