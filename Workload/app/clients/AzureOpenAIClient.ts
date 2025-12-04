@@ -65,7 +65,7 @@ export class AzureOpenAIClient {
    * Generate a plan for a given task
    * Breaks down the task into executable steps
    */
-  async generatePlan(task: string, context?: string): Promise<AssistantPlan> {
+  async generatePlan(task: string, context?: string, agentInstructions?: string): Promise<AssistantPlan> {
     // If credentials not configured, return mock plan for demo purposes
     if (!this.config.endpoint || !this.config.apiKey) {
       return this.getMockPlan(task);
@@ -73,7 +73,7 @@ export class AzureOpenAIClient {
 
     try {
       const prompt = this.buildPlanPrompt(task, context);
-      const response = await this.callAzureOpenAI(prompt);
+      const response = await this.callAzureOpenAI(prompt, agentInstructions);
       return this.parsePlanResponse(response, task);
     } catch (error) {
       console.error('Error generating plan:', error);
@@ -85,7 +85,7 @@ export class AzureOpenAIClient {
   /**
    * Generate code for a specific step in the plan
    */
-  async generateCode(step: AssistantStep, context?: string): Promise<string> {
+  async generateCode(step: AssistantStep, context?: string, agentInstructions?: string): Promise<string> {
     // If credentials not configured, return mock code
     if (!this.config.endpoint || !this.config.apiKey) {
       return this.getMockCode(step);
@@ -93,7 +93,7 @@ export class AzureOpenAIClient {
 
     try {
       const prompt = this.buildCodePrompt(step, context);
-      const response = await this.callAzureOpenAI(prompt);
+      const response = await this.callAzureOpenAI(prompt, agentInstructions);
       return this.parseCodeResponse(response);
     } catch (error) {
       console.error('Error generating code:', error);
@@ -110,7 +110,8 @@ export class AzureOpenAIClient {
     plan: AssistantPlan,
     executedStep: AssistantStep,
     output: string,
-    wasError: boolean
+    wasError: boolean,
+    agentInstructions?: string
   ): Promise<StepReviewResult> {
     // If credentials not configured, return mock review
     if (!this.config.endpoint || !this.config.apiKey) {
@@ -119,7 +120,7 @@ export class AzureOpenAIClient {
 
     try {
       const prompt = this.buildReviewPrompt(plan, executedStep, output, wasError);
-      const response = await this.callAzureOpenAI(prompt);
+      const response = await this.callAzureOpenAI(prompt, agentInstructions);
       return this.parseReviewResponse(response, plan);
     } catch (error) {
       console.error('Error reviewing result:', error);
@@ -161,8 +162,14 @@ export class AzureOpenAIClient {
   /**
    * Call Azure OpenAI API
    */
-  private async callAzureOpenAI(prompt: string): Promise<string> {
+  private async callAzureOpenAI(prompt: string, customInstructions?: string): Promise<string> {
     const url = `${this.config.endpoint}/openai/deployments/${this.config.deploymentName}/chat/completions?api-version=${this.config.apiVersion}`;
+
+    // Build system message with optional custom instructions
+    let systemMessage = 'You are an AI assistant that helps users write PySpark code for data analysis tasks in Microsoft Fabric notebooks.';
+    if (customInstructions) {
+      systemMessage += `\n\nAdditional Instructions:\n${customInstructions}`;
+    }
 
     const response = await fetch(url, {
       method: 'POST',
@@ -174,7 +181,7 @@ export class AzureOpenAIClient {
         messages: [
           {
             role: 'system',
-            content: 'You are an AI assistant that helps users write PySpark code for data analysis tasks in Microsoft Fabric notebooks.'
+            content: systemMessage
           },
           {
             role: 'user',

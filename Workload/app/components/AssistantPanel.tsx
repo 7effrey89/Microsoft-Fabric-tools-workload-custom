@@ -10,6 +10,18 @@ import {
   Tooltip,
   Spinner,
   Switch,
+  Menu,
+  MenuTrigger,
+  MenuPopover,
+  MenuList,
+  MenuItem,
+  Dialog,
+  DialogSurface,
+  DialogTitle,
+  DialogBody,
+  DialogActions,
+  DialogContent,
+  Field,
 } from '@fluentui/react-components';
 import {
   Sparkle20Regular,
@@ -21,6 +33,8 @@ import {
   Person20Regular,
   Code20Regular,
   ArrowClockwise16Regular,
+  Settings20Regular,
+  DocumentBulletList20Regular,
 } from '@fluentui/react-icons';
 import { AssistantPlan, AssistantStep } from '../clients/AzureOpenAIClient';
 
@@ -279,6 +293,14 @@ const useStyles = makeStyles({
     alignItems: 'center',
     ...shorthands.gap('8px'),
   },
+  headerButtons: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap('4px'),
+  },
+  instructionsTextarea: {
+    minHeight: '150px',
+  },
 });
 
 export interface AssistantPanelProps {
@@ -289,6 +311,8 @@ export interface AssistantPanelProps {
   onRegeneratePlan?: () => void;
   agentMode?: boolean;
   onAgentModeChange?: (enabled: boolean) => void;
+  agentInstructions?: string;
+  onAgentInstructionsChange?: (instructions: string) => void;
 }
 
 export const AssistantPanel: React.FC<AssistantPanelProps> = ({
@@ -299,10 +323,19 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   onRegeneratePlan,
   agentMode,
   onAgentModeChange,
+  agentInstructions,
+  onAgentInstructionsChange,
 }) => {
   const styles = useStyles();
   const [taskInput, setTaskInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isInstructionsDialogOpen, setIsInstructionsDialogOpen] = useState(false);
+  const [instructionsInput, setInstructionsInput] = useState(agentInstructions || '');
+
+  // Sync instructions input when prop changes
+  useEffect(() => {
+    setInstructionsInput(agentInstructions || '');
+  }, [agentInstructions]);
 
   // Auto-scroll to bottom when plan updates
   useEffect(() => {
@@ -321,6 +354,11 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
       e.preventDefault();
       handleSubmit();
     }
+  };
+
+  const handleSaveInstructions = () => {
+    onAgentInstructionsChange?.(instructionsInput);
+    setIsInstructionsDialogOpen(false);
   };
 
   const suggestions = [
@@ -358,17 +396,74 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
           </div>
           <Text weight="semibold" size={400}>Copilot</Text>
         </div>
-        {plan && (
-          <Tooltip content="Start new conversation" relationship="label">
-            <Button
-              appearance="subtle"
-              size="small"
-              icon={<ArrowClockwise16Regular />}
-              onClick={onRegeneratePlan}
-            />
-          </Tooltip>
-        )}
+        <div className={styles.headerButtons}>
+          {plan && (
+            <Tooltip content="Start new conversation" relationship="label">
+              <Button
+                appearance="subtle"
+                size="small"
+                icon={<ArrowClockwise16Regular />}
+                onClick={onRegeneratePlan}
+              />
+            </Tooltip>
+          )}
+          <Menu>
+            <MenuTrigger disableButtonEnhancement>
+              <Tooltip content="Settings" relationship="label">
+                <Button
+                  appearance="subtle"
+                  size="small"
+                  icon={<Settings20Regular />}
+                />
+              </Tooltip>
+            </MenuTrigger>
+            <MenuPopover>
+              <MenuList>
+                <MenuItem
+                  icon={<DocumentBulletList20Regular />}
+                  onClick={() => setIsInstructionsDialogOpen(true)}
+                >
+                  Agent Instructions
+                </MenuItem>
+              </MenuList>
+            </MenuPopover>
+          </Menu>
+        </div>
       </div>
+
+      {/* Agent Instructions Dialog */}
+      <Dialog
+        open={isInstructionsDialogOpen}
+        onOpenChange={(_, data) => setIsInstructionsDialogOpen(data.open)}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Agent Instructions</DialogTitle>
+            <DialogContent>
+              <Field
+                label="Custom system message"
+                hint="These instructions will guide the AI assistant's behavior when generating plans and code."
+              >
+                <Textarea
+                  className={styles.instructionsTextarea}
+                  placeholder="e.g., Always use descriptive variable names. Prefer using PySpark DataFrame API over SQL. Include error handling in all code blocks..."
+                  value={instructionsInput}
+                  onChange={(_, data) => setInstructionsInput(data.value)}
+                  resize="vertical"
+                />
+              </Field>
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setIsInstructionsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button appearance="primary" onClick={handleSaveInstructions}>
+                Save
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
 
       {/* Messages Area */}
       <div className={styles.messagesContainer}>

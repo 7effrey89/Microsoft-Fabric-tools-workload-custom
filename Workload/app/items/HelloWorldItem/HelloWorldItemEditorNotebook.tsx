@@ -148,6 +148,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
   );
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [agentMode, setAgentMode] = useState(false);  // Agent Mode auto-executes next steps
+  const [agentInstructions, setAgentInstructions] = useState<string>('');  // Custom system message for AI
   
   // Ref to track latest plan for use in async callbacks (avoids stale closure issues)
   const planRef = useRef<AssistantPlan | undefined>(plan);
@@ -523,7 +524,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
   const handleGeneratePlan = async (task: string) => {
     setIsGeneratingPlan(true);
     try {
-      const newPlan = await aiClient.generatePlan(task);
+      const newPlan = await aiClient.generatePlan(task, undefined, agentInstructions);
       setPlan(newPlan);
     } catch (error) {
       console.error('Error generating plan:', error);
@@ -548,7 +549,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
     
     // Generate code for the current step
     try {
-      const generatedCode = await aiClient.generateCode(currentStep);
+      const generatedCode = await aiClient.generateCode(currentStep, undefined, agentInstructions);
       
       // Create a new cell with the generated code - mark as executing immediately
       const newCellId = `cell-${Date.now()}`;
@@ -627,7 +628,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         const stepWithResult = { ...currentStep, status: 'completed' as const, result: output, code: generatedCode };
 
         // Review the execution result and decide how to proceed
-        const review = await aiClient.reviewAndRevise(currentPlan, stepWithResult, output, false);
+        const review = await aiClient.reviewAndRevise(currentPlan, stepWithResult, output, false, agentInstructions);
         
         // Check if plan needs revision based on the output
         if (review.needsRevision && review.revisedSteps && review.revisedSteps.length > 0) {
@@ -705,7 +706,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
         // Review the error and try to get correction code
         const stepWithError = { ...currentStep, code: generatedCode, error: errorOutput };
-        const review = await aiClient.reviewAndRevise(currentPlan, stepWithError, errorOutput, true);
+        const review = await aiClient.reviewAndRevise(currentPlan, stepWithError, errorOutput, true, agentInstructions);
 
         if (review.correctionCode && agentMode) {
           // Agent Mode: automatically try to fix the error
@@ -1037,6 +1038,8 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           onRegeneratePlan={handleRegeneratePlan}
           agentMode={agentMode}
           onAgentModeChange={setAgentMode}
+          agentInstructions={agentInstructions}
+          onAgentInstructionsChange={setAgentInstructions}
         />
       </div>
     </div>
