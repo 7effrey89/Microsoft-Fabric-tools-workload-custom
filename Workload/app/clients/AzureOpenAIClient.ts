@@ -1,10 +1,13 @@
 /**
  * Azure OpenAI Client for AI Assistant
+ * Uses the OpenAI SDK with Azure configuration
  * Provides plan generation and code generation capabilities
  * 
  * Note: Requires Azure OpenAI credentials to be configured in environment variables
  * For setup instructions, see ASSISTANT_SETUP.md
  */
+
+import OpenAI from 'openai';
 
 export interface AssistantPlan {
   goal: string;
@@ -38,26 +41,50 @@ export interface AzureOpenAIConfig {
   apiVersion?: string;
 }
 
+// Available models in Azure OpenAI deployments
+export const AVAILABLE_MODELS = [
+  { id: 'gpt-4.1', name: 'GPT-4.1' },
+  { id: 'gpt-5-chat', name: 'GPT-5 Chat' },
+  { id: 'gpt-5.1-chat', name: 'GPT-5.1 Chat' },
+  { id: 'gpt-5.1-codex-mini', name: 'GPT-5.1 Codex Mini' },
+  { id: 'DeepSeek-V3.1', name: 'DeepSeek V3.1' },
+  { id: 'model-router', name: 'Model Router' },
+] as const;
+
+export type ModelId = typeof AVAILABLE_MODELS[number]['id'];
+
+export const DEFAULT_MODEL: ModelId = 'gpt-4.1';
+
 /**
  * Azure OpenAI Client for generating plans and code
+ * Uses the OpenAI SDK with Azure configuration
  */
 export class AzureOpenAIClient {
   private config: AzureOpenAIConfig;
+  private client: OpenAI | null = null;
 
   constructor(config?: AzureOpenAIConfig) {
     // Use provided config or fall back to environment variables
     this.config = config || {
       endpoint: process.env.AZURE_OPENAI_ENDPOINT || '',
       apiKey: process.env.AZURE_OPENAI_API_KEY || '',
-      deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4',
+      deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4o',
       apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-02-15-preview'
     };
 
-    // Validate configuration
-    if (!this.config.endpoint || !this.config.apiKey) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('Azure OpenAI credentials not configured. Using mock responses. See ASSISTANT_SETUP.md for configuration.');
-      }
+    // Initialize OpenAI client if credentials are available
+    if (this.config.endpoint && this.config.apiKey) {
+      // For Azure OpenAI with OpenAI SDK, use the /openai/v1 endpoint
+      const baseUrl = `${this.config.endpoint.replace(/\/$/, '')}/openai/v1`;
+      
+      this.client = new OpenAI({
+        baseURL: baseUrl,
+        apiKey: this.config.apiKey,
+        dangerouslyAllowBrowser: true, // Required for browser usage
+      });
+      console.log('Azure OpenAI client initialized with base URL:', baseUrl);
+    } else if (process.env.NODE_ENV === 'development') {
+      console.warn('Azure OpenAI credentials not configured. Using mock responses. See ASSISTANT_SETUP.md for configuration.');
     }
   }
 
@@ -65,15 +92,15 @@ export class AzureOpenAIClient {
    * Generate a plan for a given task
    * Breaks down the task into executable steps
    */
-  async generatePlan(task: string, context?: string, agentInstructions?: string): Promise<AssistantPlan> {
+  async generatePlan(task: string, context?: string, agentInstructions?: string, model?: ModelId): Promise<AssistantPlan> {
     // If credentials not configured, return mock plan for demo purposes
-    if (!this.config.endpoint || !this.config.apiKey) {
+    if (!this.client) {
       return this.getMockPlan(task);
     }
 
     try {
       const prompt = this.buildPlanPrompt(task, context);
-      const response = await this.callAzureOpenAI(prompt, agentInstructions);
+      const response = await this.callAzureOpenAI(prompt, agentInstructions, model);
       return this.parsePlanResponse(response, task);
     } catch (error) {
       console.error('Error generating plan:', error);
@@ -85,15 +112,15 @@ export class AzureOpenAIClient {
   /**
    * Generate code for a specific step in the plan
    */
-  async generateCode(step: AssistantStep, context?: string, agentInstructions?: string): Promise<string> {
+  async generateCode(step: AssistantStep, context?: string, agentInstructions?: string, model?: ModelId): Promise<string> {
     // If credentials not configured, return mock code
-    if (!this.config.endpoint || !this.config.apiKey) {
+    if (!this.client) {
       return this.getMockCode(step);
     }
 
     try {
       const prompt = this.buildCodePrompt(step, context);
-      const response = await this.callAzureOpenAI(prompt, agentInstructions);
+      const response = await this.callAzureOpenAI(prompt, agentInstructions, model);
       return this.parseCodeResponse(response);
     } catch (error) {
       console.error('Error generating code:', error);
@@ -111,16 +138,17 @@ export class AzureOpenAIClient {
     executedStep: AssistantStep,
     output: string,
     wasError: boolean,
-    agentInstructions?: string
+    agentInstructions?: string,
+    model?: ModelId
   ): Promise<StepReviewResult> {
     // If credentials not configured, return mock review
-    if (!this.config.endpoint || !this.config.apiKey) {
+    if (!this.client) {
       return this.getMockReview(wasError, output);
     }
 
     try {
       const prompt = this.buildReviewPrompt(plan, executedStep, output, wasError);
-      const response = await this.callAzureOpenAI(prompt, agentInstructions);
+      const response = await this.callAzureOpenAI(prompt, agentInstructions, model);
       return this.parseReviewResponse(response, plan);
     } catch (error) {
       console.error('Error reviewing result:', error);
@@ -131,13 +159,13 @@ export class AzureOpenAIClient {
   /**
    * Evaluate the result of a step execution
    */
-  async evaluateResult(step: AssistantStep, output: string): Promise<{
+  async evaluateResult(step: AssistantStep, output: string, model?: ModelId): Promise<{
     success: boolean;
     feedback: string;
     shouldRetry: boolean;
   }> {
     // If credentials not configured, return mock evaluation
-    if (!this.config.endpoint || !this.config.apiKey) {
+    if (!this.client) {
       return {
         success: true,
         feedback: 'Step completed successfully (mock evaluation)',
@@ -147,7 +175,7 @@ export class AzureOpenAIClient {
 
     try {
       const prompt = this.buildEvaluationPrompt(step, output);
-      const response = await this.callAzureOpenAI(prompt);
+      const response = await this.callAzureOpenAI(prompt, undefined, model);
       return this.parseEvaluationResponse(response);
     } catch (error) {
       console.error('Error evaluating result:', error);
@@ -160,10 +188,18 @@ export class AzureOpenAIClient {
   }
 
   /**
-   * Call Azure OpenAI API
+   * Call Azure OpenAI API using the OpenAI SDK
    */
-  private async callAzureOpenAI(prompt: string, customInstructions?: string): Promise<string> {
-    const url = `${this.config.endpoint}/openai/deployments/${this.config.deploymentName}/chat/completions?api-version=${this.config.apiVersion}`;
+  private async callAzureOpenAI(prompt: string, customInstructions?: string, model?: ModelId): Promise<string> {
+    if (!this.client) {
+      throw new Error('OpenAI client not initialized');
+    }
+
+    // Use provided model or fall back to default deployment
+    // IMPORTANT: For Azure OpenAI, this must match the deployment name exactly
+    const modelToUse = model || this.config.deploymentName;
+    
+    console.log(`Calling Azure OpenAI with deployment/model: ${modelToUse}`);
 
     // Build system message with optional custom instructions
     let systemMessage = 'You are an AI assistant that helps users write PySpark code for data analysis tasks in Microsoft Fabric notebooks.';
@@ -171,34 +207,26 @@ export class AzureOpenAIClient {
       systemMessage += `\n\nAdditional Instructions:\n${customInstructions}`;
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'api-key': this.config.apiKey
-      },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: 'system',
-            content: systemMessage
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
-      })
+    // Determine if this is a newer model that uses max_completion_tokens
+    const isNewerModel = modelToUse.includes('gpt-5') || modelToUse.includes('o1') || modelToUse.includes('o3') || modelToUse.includes('o4');
+    
+    const response = await this.client.chat.completions.create({
+      model: modelToUse,
+      messages: [
+        {
+          role: 'system',
+          content: systemMessage
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: isNewerModel ? undefined : 0.7, // Some newer models don't support temperature
+      ...(isNewerModel ? { max_completion_tokens: 2000 } : { max_tokens: 2000 })
     });
 
-    if (!response.ok) {
-      throw new Error(`Azure OpenAI API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0]?.message?.content || '';
+    return response.choices[0]?.message?.content || '';
   }
 
   /**
@@ -393,7 +421,20 @@ except Exception as e:
    */
   private parsePlanResponse(response: string, task: string): AssistantPlan {
     try {
-      const parsed = JSON.parse(response);
+      // Extract JSON from markdown code blocks if present (e.g., ```json ... ```)
+      let jsonString = response;
+      const jsonCodeBlockMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonCodeBlockMatch) {
+        jsonString = jsonCodeBlockMatch[1].trim();
+      }
+      
+      // Also try to extract just the JSON object if there's extra text
+      const jsonObjectMatch = jsonString.match(/\{[\s\S]*\}/);
+      if (jsonObjectMatch) {
+        jsonString = jsonObjectMatch[0];
+      }
+      
+      const parsed = JSON.parse(jsonString);
       const steps: AssistantStep[] = parsed.steps.map((step: any, index: number) => ({
         id: `step-${index}`,
         description: step.description,
@@ -532,6 +573,13 @@ print("Analysis complete!")`
    * Check if Azure OpenAI is configured
    */
   isConfigured(): boolean {
-    return !!(this.config.endpoint && this.config.apiKey);
+    return this.client !== null;
+  }
+
+  /**
+   * Get the list of available models
+   */
+  getAvailableModels(): typeof AVAILABLE_MODELS {
+    return AVAILABLE_MODELS;
   }
 }

@@ -9,7 +9,6 @@ import {
   shorthands,
   Tooltip,
   Spinner,
-  Switch,
   Menu,
   MenuTrigger,
   MenuPopover,
@@ -22,6 +21,8 @@ import {
   DialogActions,
   DialogContent,
   Field,
+  Dropdown,
+  Option,
 } from '@fluentui/react-components';
 import {
   Sparkle20Regular,
@@ -37,7 +38,7 @@ import {
   Settings20Regular,
   DocumentBulletList20Regular,
 } from '@fluentui/react-icons';
-import { AssistantPlan, AssistantStep } from '../clients/AzureOpenAIClient';
+import { AssistantPlan, AssistantStep, AVAILABLE_MODELS, ModelId } from '../clients/AzureOpenAIClient';
 
 const useStyles = makeStyles({
   container: {
@@ -302,6 +303,36 @@ const useStyles = makeStyles({
   instructionsTextarea: {
     minHeight: '150px',
   },
+  modelDropdown: {
+    minWidth: '140px',
+  },
+  modelSection: {
+    marginTop: '16px',
+  },
+  modelBadge: {
+    fontSize: '11px',
+    marginLeft: '4px',
+  },
+  footerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap('12px'),
+  },
+  footerDropdown: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap('4px'),
+    cursor: 'pointer',
+    ...shorthands.padding('2px', '6px'),
+    ...shorthands.borderRadius('4px'),
+    ':hover': {
+      backgroundColor: tokens.colorNeutralBackground3,
+    },
+  },
+  footerDropdownText: {
+    fontSize: '12px',
+    color: tokens.colorNeutralForeground2,
+  },
 });
 
 export interface AssistantPanelProps {
@@ -316,6 +347,8 @@ export interface AssistantPanelProps {
   onAgentModeChange?: (enabled: boolean) => void;
   agentInstructions?: string;
   onAgentInstructionsChange?: (instructions: string) => void;
+  selectedModel?: ModelId;
+  onModelChange?: (model: ModelId) => void;
 }
 
 export const AssistantPanel: React.FC<AssistantPanelProps> = ({
@@ -330,6 +363,8 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   onAgentModeChange,
   agentInstructions,
   onAgentInstructionsChange,
+  selectedModel,
+  onModelChange,
 }) => {
   const styles = useStyles();
   const [taskInput, setTaskInput] = useState('');
@@ -443,20 +478,43 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
       >
         <DialogSurface>
           <DialogBody>
-            <DialogTitle>Agent Instructions</DialogTitle>
+            <DialogTitle>Agent Settings</DialogTitle>
             <DialogContent>
               <Field
-                label="Custom system message"
-                hint="These instructions will guide the AI assistant's behavior when generating plans and code."
+                label="Model"
+                hint="Select the AI model to use for generating plans and code."
               >
-                <Textarea
-                  className={styles.instructionsTextarea}
-                  placeholder="e.g., Always use descriptive variable names. Prefer using PySpark DataFrame API over SQL. Include error handling in all code blocks..."
-                  value={instructionsInput}
-                  onChange={(_, data) => setInstructionsInput(data.value)}
-                  resize="vertical"
-                />
+                <Dropdown
+                  className={styles.modelDropdown}
+                  value={AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || 'GPT-4o'}
+                  selectedOptions={selectedModel ? [selectedModel] : ['gpt-4o']}
+                  onOptionSelect={(_, data) => {
+                    if (data.optionValue && onModelChange) {
+                      onModelChange(data.optionValue as ModelId);
+                    }
+                  }}
+                >
+                  {AVAILABLE_MODELS.map((model) => (
+                    <Option key={model.id} value={model.id}>
+                      {model.name}
+                    </Option>
+                  ))}
+                </Dropdown>
               </Field>
+              <div className={styles.modelSection}>
+                <Field
+                  label="Custom system message"
+                  hint="These instructions will guide the AI assistant's behavior when generating plans and code."
+                >
+                  <Textarea
+                    className={styles.instructionsTextarea}
+                    placeholder="e.g., Always use descriptive variable names. Prefer using PySpark DataFrame API over SQL. Include error handling in all code blocks..."
+                    value={instructionsInput}
+                    onChange={(_, data) => setInstructionsInput(data.value)}
+                    resize="vertical"
+                  />
+                </Field>
+              </div>
             </DialogContent>
             <DialogActions>
               <Button appearance="secondary" onClick={() => setIsInstructionsDialogOpen(false)}>
@@ -705,18 +763,51 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
           )}
         </div>
         <div className={styles.footerControls}>
-          <Tooltip
-            content="Automatically execute all steps without waiting"
-            relationship="description"
-          >
-            <div className={styles.agentModeToggle}>
-              <Switch
-                checked={agentMode || false}
-                onChange={(_, data) => onAgentModeChange?.(data.checked)}
-              />
-              <Text size={200}>Agent Mode</Text>
-            </div>
-          </Tooltip>
+          <div className={styles.footerLeft}>
+            {/* Agent Mode dropdown */}
+            <Menu>
+              <MenuTrigger disableButtonEnhancement>
+                <div className={styles.footerDropdown}>
+                  <Text className={styles.footerDropdownText}>
+                    {agentMode ? 'Agent' : 'Chat'} ▾
+                  </Text>
+                </div>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  <MenuItem onClick={() => onAgentModeChange?.(false)}>
+                    {!agentMode ? '✓ ' : '   '}Chat
+                  </MenuItem>
+                  <MenuItem onClick={() => onAgentModeChange?.(true)}>
+                    {agentMode ? '✓ ' : '   '}Agent
+                  </MenuItem>
+                </MenuList>
+              </MenuPopover>
+            </Menu>
+
+            {/* Model dropdown */}
+            <Menu>
+              <MenuTrigger disableButtonEnhancement>
+                <div className={styles.footerDropdown}>
+                  <Text className={styles.footerDropdownText}>
+                    {AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || 'GPT-4o'} ▾
+                  </Text>
+                </div>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  {AVAILABLE_MODELS.map((model) => (
+                    <MenuItem
+                      key={model.id}
+                      onClick={() => onModelChange?.(model.id)}
+                    >
+                      {selectedModel === model.id ? '✓ ' : '   '}{model.name}
+                    </MenuItem>
+                  ))}
+                </MenuList>
+              </MenuPopover>
+            </Menu>
+          </div>
           <Text size={100} style={{ color: tokens.colorNeutralForeground4 }}>
             Shift + Enter for new line
           </Text>
