@@ -156,6 +156,10 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
     planRef.current = plan;
   }, [plan]);
 
+  // Abort controller for stopping AI execution
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const stoppedRef = useRef(false);  // Track if execution was stopped by user
+
   // Notebook cells state - for the interactive editor
   const [cells, setCells] = useState<NotebookCell[]>([
     {
@@ -521,6 +525,38 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
   // ============ AI ASSISTANT HANDLERS ============
 
+  const handleStop = () => {
+    // Signal to stop execution
+    stoppedRef.current = true;
+    abortControllerRef.current?.abort();
+    
+    // Reset execution states
+    setIsGeneratingPlan(false);
+    setIsExecutingCell(false);
+    setSessionState(prev => prev === 'busy' ? 'idle' : prev);
+    
+    // Mark any running cells as stopped
+    setCells(prev => prev.map(c => 
+      c.isExecuting ? { ...c, isExecuting: false, output: '[Execution stopped by user]', hasError: true } : c
+    ));
+    
+    // Mark current running step as failed
+    setPlan(prev => {
+      if (!prev) return prev;
+      const steps = prev.steps.map(s => 
+        s.status === 'running' ? { ...s, status: 'failed' as const, result: 'Stopped by user' } : s
+      );
+      return { ...prev, steps };
+    });
+
+    workloadClient.notification.open({
+      notificationType: 'informational' as any,
+      title: 'Execution Stopped',
+      message: 'The AI assistant execution was stopped.',
+      duration: 'short' as any,
+    });
+  };
+
   const handleGeneratePlan = async (task: string) => {
     setIsGeneratingPlan(true);
     try {
@@ -540,6 +576,9 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
   };
 
   const handleProceedToNextStep = async () => {
+    // Reset stopped flag when starting new execution
+    stoppedRef.current = false;
+    
     // Use ref to get latest plan state (avoids stale closure issues in setTimeout callbacks)
     const currentPlan = planRef.current;
     if (!currentPlan || currentPlan.currentStepIndex >= currentPlan.steps.length) return;
@@ -677,10 +716,12 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           : currentPlan.steps.length;
         const hasMoreSteps = newStepIndex < totalSteps;
           
-        if (agentMode && hasMoreSteps) {
+        if (agentMode && hasMoreSteps && !stoppedRef.current) {
           // Wait for state to update, then use ref to get fresh plan
           setTimeout(() => {
-            handleProceedToNextStep();
+            if (!stoppedRef.current) {  // Double-check before proceeding
+              handleProceedToNextStep();
+            }
           }, 500);
         }
 
@@ -708,7 +749,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         const stepWithError = { ...currentStep, code: generatedCode, error: errorOutput };
         const review = await aiClient.reviewAndRevise(currentPlan, stepWithError, errorOutput, true, agentInstructions);
 
-        if (review.correctionCode && agentMode) {
+        if (review.correctionCode && agentMode && !stoppedRef.current) {
           // Agent Mode: automatically try to fix the error
           await workloadClient.notification.open({
             notificationType: 'warning' as any,
@@ -781,9 +822,11 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
             });
 
             // Continue to next step - use ref for fresh state
-            if (agentMode && hasMoreSteps) {
+            if (agentMode && hasMoreSteps && !stoppedRef.current) {
               setTimeout(() => {
-                handleProceedToNextStep();
+                if (!stoppedRef.current) {
+                  handleProceedToNextStep();
+                }
               }, 500);
             }
 
@@ -1033,9 +1076,11 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
         <AssistantPanel
           plan={plan}
           isGeneratingPlan={isGeneratingPlan}
+          isExecuting={isExecutingCell}
           onGeneratePlan={handleGeneratePlan}
           onProceedToNextStep={handleProceedToNextStep}
           onRegeneratePlan={handleRegeneratePlan}
+          onStop={handleStop}
           agentMode={agentMode}
           onAgentModeChange={setAgentMode}
           agentInstructions={agentInstructions}

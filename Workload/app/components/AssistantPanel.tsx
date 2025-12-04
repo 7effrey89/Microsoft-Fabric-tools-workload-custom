@@ -27,6 +27,7 @@ import {
   Sparkle20Regular,
   Sparkle20Filled,
   Send20Regular,
+  Stop20Regular,
   Play16Regular,
   Checkmark16Regular,
   Dismiss16Regular,
@@ -306,9 +307,11 @@ const useStyles = makeStyles({
 export interface AssistantPanelProps {
   plan?: AssistantPlan;
   isGeneratingPlan?: boolean;
+  isExecuting?: boolean;
   onGeneratePlan?: (task: string) => void;
   onProceedToNextStep?: () => void;
   onRegeneratePlan?: () => void;
+  onStop?: () => void;
   agentMode?: boolean;
   onAgentModeChange?: (enabled: boolean) => void;
   agentInstructions?: string;
@@ -318,9 +321,11 @@ export interface AssistantPanelProps {
 export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   plan,
   isGeneratingPlan,
+  isExecuting,
   onGeneratePlan,
   onProceedToNextStep,
   onRegeneratePlan,
+  onStop,
   agentMode,
   onAgentModeChange,
   agentInstructions,
@@ -679,14 +684,25 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
               resize="vertical"
             />
           </div>
-          <Tooltip content="Send message" relationship="label">
-            <Button
-              appearance="primary"
-              icon={<Send20Regular />}
-              onClick={handleSubmit}
-              disabled={!taskInput.trim() || isGeneratingPlan}
-            />
-          </Tooltip>
+          {isGeneratingPlan || isExecuting ? (
+            <Tooltip content="Stop" relationship="label">
+              <Button
+                appearance="primary"
+                icon={<Stop20Regular />}
+                onClick={onStop}
+                style={{ backgroundColor: tokens.colorPaletteRedBackground3 }}
+              />
+            </Tooltip>
+          ) : (
+            <Tooltip content="Send message" relationship="label">
+              <Button
+                appearance="primary"
+                icon={<Send20Regular />}
+                onClick={handleSubmit}
+                disabled={!taskInput.trim()}
+              />
+            </Tooltip>
+          )}
         </div>
         <div className={styles.footerControls}>
           <Tooltip
