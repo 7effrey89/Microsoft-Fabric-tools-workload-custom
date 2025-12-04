@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   Button,
   Text,
@@ -120,6 +120,17 @@ export const NotebookEditor: React.FC<NotebookEditorProps> = ({
   isExecuting,
 }) => {
   const styles = useStyles();
+  const cellsEndRef = useRef<HTMLDivElement>(null);
+  const prevCellsLengthRef = useRef(cells.length);
+
+  // Auto-scroll to bottom when a new cell is added
+  useEffect(() => {
+    if (cells.length > prevCellsLengthRef.current) {
+      // New cell was added, scroll to bottom
+      cellsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevCellsLengthRef.current = cells.length;
+  }, [cells.length]);
 
   return (
     <div className={styles.container}>
@@ -247,6 +258,8 @@ export const NotebookEditor: React.FC<NotebookEditorProps> = ({
                 )}
               </div>
             ))}
+            {/* Scroll anchor */}
+            <div ref={cellsEndRef} />
           </div>
         )}
       </div>
