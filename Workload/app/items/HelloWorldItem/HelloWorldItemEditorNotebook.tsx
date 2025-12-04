@@ -19,7 +19,7 @@ import {
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { ItemWithDefinition } from "../../controller/ItemCRUDController";
 import { HelloWorldItemDefinition } from "./HelloWorldItemModel";
-import { NotebookEditor, NotebookCell } from '../../components/NotebookEditor';
+import { NotebookEditor, NotebookCell, CellType } from '../../components/NotebookEditor';
 import { AssistantPanel } from '../../components/AssistantPanel';
 import { AzureOpenAIClient, AssistantPlan, ModelId, DEFAULT_MODEL } from '../../clients/AzureOpenAIClient';
 import { SparkLivyClient } from '../../clients/SparkLivyClient';
@@ -168,6 +168,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
       : [{
           id: 'cell-1',
           code: '# Welcome to the AI Notebook Assistant\n# Write your PySpark code here and click Run to execute\n\nprint("Hello from Spark!")',
+          cellType: 'code',
           output: undefined,
           isExecuting: false,
           hasError: false,
@@ -337,13 +338,17 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
   // ============ NOTEBOOK CELL MANAGEMENT ============
 
-  const handleAddCell = (afterCellId?: string) => {
+  const handleAddCell = (afterCellId?: string, cellType: CellType = 'code') => {
     const newCell: NotebookCell = {
       id: `cell-${Date.now()}`,
-      code: '# Write your PySpark code here\n',
+      code: cellType === 'code' 
+        ? '# Write your PySpark code here\n'
+        : '# Markdown Cell\n\nDouble-click to edit this markdown cell.',
+      cellType,
       output: undefined,
       isExecuting: false,
       hasError: false,
+      isEditing: cellType === 'markdown', // Start markdown cells in edit mode
     };
     
     if (afterCellId) {
@@ -365,6 +370,18 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
       }
     }
     setSelectedCellId(newCell.id);
+  };
+
+  const handleCellTypeChange = (cellId: string, cellType: CellType) => {
+    setCells(cells.map(c => 
+      c.id === cellId ? { ...c, cellType, isEditing: cellType === 'markdown' } : c
+    ));
+  };
+
+  const handleCellEditingChange = (cellId: string, isEditing: boolean) => {
+    setCells(cells.map(c => 
+      c.id === cellId ? { ...c, isEditing } : c
+    ));
   };
 
   const handleCellCodeChange = (cellId: string, code: string) => {
@@ -481,7 +498,8 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
   const handleRunAllCells = async () => {
     for (const cell of cells) {
       if (stoppedRef.current) break;
-      if (cell.code.trim()) {
+      // Only run code cells, skip markdown cells
+      if (cell.cellType === 'code' && cell.code.trim()) {
         await handleCellExecute(cell.id);
       }
     }
@@ -495,7 +513,8 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
     
     for (const cell of cellsToRun) {
       if (stoppedRef.current) break;
-      if (cell.code.trim()) {
+      // Only run code cells, skip markdown cells
+      if (cell.cellType === 'code' && cell.code.trim()) {
         await handleCellExecute(cell.id);
       }
     }
@@ -503,6 +522,122 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
   const handleClearAllOutputs = () => {
     setCells(cells.map((c): NotebookCell => ({ ...c, output: undefined, hasError: false, executionTime: undefined })));
+  };
+
+  // Handle importing notebook cells
+  const handleImportNotebook = (importedCells: NotebookCell[]) => {
+    setCells(importedCells);
+    setSelectedCellId(importedCells.length > 0 ? importedCells[0].id : undefined);
+    
+    workloadClient.notification.open({
+      notificationType: 'success' as any,
+      title: 'Notebook Imported',
+      message: `Successfully imported ${importedCells.length} cell(s).`,
+      duration: 'short' as any,
+    });
+  };
+
+  // Handle exporting notebook as .ipynb
+  const handleExportNotebook = async () => {
+    // Build .ipynb structure
+    const notebook = {
+      nbformat: 4,
+      nbformat_minor: 5,
+      metadata: {
+        kernelspec: {
+          display_name: 'Python 3',
+          language: 'python',
+          name: 'python3'
+        },
+        language_info: {
+          name: 'python',
+          version: '3.10.0'
+        }
+      },
+      cells: cells.map((cell, index) => {
+        // Handle markdown cells
+        if (cell.cellType === 'markdown') {
+          return {
+            cell_type: 'markdown',
+            metadata: {},
+            source: cell.code.split('\n').map((line, i, arr) => 
+              i < arr.length - 1 ? line + '\n' : line
+            )
+          };
+        }
+
+        // Handle code cells
+        const ipynbCell: any = {
+          cell_type: 'code',
+          execution_count: index + 1,
+          metadata: {},
+          source: cell.code.split('\n').map((line, i, arr) => 
+            i < arr.length - 1 ? line + '\n' : line
+          ),
+          outputs: []
+        };
+
+        // Add output if present
+        if (cell.output) {
+          if (cell.hasError) {
+            // Error output
+            const errorLines = cell.output.split('\n');
+            const ename = errorLines[0]?.split(':')[0] || 'Error';
+            const evalue = errorLines[0]?.split(':').slice(1).join(':').trim() || cell.output;
+            
+            ipynbCell.outputs.push({
+              output_type: 'error',
+              ename: ename,
+              evalue: evalue,
+              traceback: errorLines
+            });
+          } else {
+            // Normal output
+            ipynbCell.outputs.push({
+              output_type: 'stream',
+              name: 'stdout',
+              text: cell.output.split('\n').map((line, i, arr) => 
+                i < arr.length - 1 ? line + '\n' : line
+              )
+            });
+          }
+        }
+
+        return ipynbCell;
+      })
+    };
+
+    // Create notebook JSON
+    const notebookJson = JSON.stringify(notebook, null, 2);
+    const fileName = `${item?.displayName || 'notebook'}.ipynb`;
+    
+    // In Fabric sandboxed iframes, we can only use clipboard
+    // The navigation.openBrowserTab API doesn't allow data URLs
+    try {
+      await navigator.clipboard.writeText(notebookJson);
+      
+      workloadClient.notification.open({
+        notificationType: 'success' as any,
+        title: 'Notebook Copied to Clipboard',
+        message: `Copied ${cells.length} cell(s). Create a new file, paste the content, and save as "${fileName}"`,
+        duration: 'long' as any,
+      });
+    } catch (clipboardError) {
+      console.error('Clipboard write failed:', clipboardError);
+      
+      // If clipboard fails, log the content to console so user can copy from there
+      console.log('=== NOTEBOOK EXPORT ===');
+      console.log(`Save the following content as: ${fileName}`);
+      console.log(notebookJson);
+      console.log('=== END NOTEBOOK EXPORT ===');
+      
+      workloadClient.notification.open({
+        notificationType: 'warning' as any,
+        title: 'Clipboard Access Denied',
+        message: `Notebook content logged to browser console (F12). Copy from there and save as "${fileName}"`,
+        duration: 'long' as any,
+      });
+    }
   };
 
   // Result type for statement execution
@@ -665,6 +800,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
       const newCell: NotebookCell = {
         id: newCellId,
         code: generatedCode,
+        cellType: 'code',
         output: undefined,
         isExecuting: true, // Start executing immediately
         hasError: false,
@@ -833,6 +969,7 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           const correctionCell: NotebookCell = {
             id: correctionCellId,
             code: review.correctionCode,
+            cellType: 'code',
             output: undefined,
             isExecuting: true,
             hasError: false,
@@ -1115,10 +1252,14 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
           onCellExecute={handleCellExecute}
           onCellDelete={handleCellDelete}
           onAddCell={handleAddCell}
+          onCellTypeChange={handleCellTypeChange}
+          onCellEditingChange={handleCellEditingChange}
           onMoveCell={handleMoveCell}
           onRunAllCells={handleRunAllCells}
           onRunCellsBelow={handleRunCellsBelow}
           onClearAllOutputs={handleClearAllOutputs}
+          onImportNotebook={handleImportNotebook}
+          onExportNotebook={handleExportNotebook}
           isExecuting={isExecutingCell}
           selectedCellId={selectedCellId}
           onSelectCell={setSelectedCellId}
