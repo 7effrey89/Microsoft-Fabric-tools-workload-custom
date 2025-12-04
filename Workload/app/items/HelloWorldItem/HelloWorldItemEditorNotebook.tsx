@@ -193,6 +193,14 @@ export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebook
 
   // ============ LIVY CONNECTION MANAGEMENT ============
 
+  // Auto-start Livy session when lakehouse is selected
+  useEffect(() => {
+    if (workspaceId && lakehouseId && livyClientRef.current && sessionState === 'disconnected') {
+      // Automatically start the Livy session after lakehouse selection
+      handleConnectLivy();
+    }
+  }, [workspaceId, lakehouseId]);
+
   const handleSelectLakehouse = async () => {
     try {
       const result = await callDatahubOpen(
