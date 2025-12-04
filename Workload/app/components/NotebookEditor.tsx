@@ -40,6 +40,7 @@ import {
   Code16Regular,
   TextDescription16Regular,
   Warning24Regular,
+  Edit16Regular,
 } from '@fluentui/react-icons';
 import Editor from '@monaco-editor/react';
 
@@ -100,6 +101,34 @@ const useStyles = makeStyles({
   cellCardSelected: {
     ...shorthands.border('2px', 'solid', tokens.colorBrandStroke1),
   },
+  // Markdown cell in read mode - blends with background like Fabric notebook
+  cellCardMarkdownRead: {
+    ...shorthands.border('1px', 'solid', 'transparent'),
+    ...shorthands.borderLeft('3px', 'solid', tokens.colorNeutralStroke2),
+    backgroundColor: 'transparent',
+    ...shorthands.borderRadius('0'),
+    ':hover': {
+      ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke2),
+      ...shorthands.borderLeft('3px', 'solid', tokens.colorBrandStroke1),
+      backgroundColor: tokens.colorNeutralBackground1,
+      ...shorthands.borderRadius('8px'),
+    },
+  },
+  // Markdown cell when selected but not editing
+  cellCardMarkdownSelected: {
+    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke1),
+    ...shorthands.borderLeft('3px', 'solid', tokens.colorBrandStroke1),
+    backgroundColor: tokens.colorNeutralBackground1,
+    ...shorthands.borderRadius('8px'),
+  },
+  // Markdown cell header hidden in read mode
+  cellHeaderMarkdownRead: {
+    display: 'none',
+  },
+  // Markdown cell header shown on hover/selection
+  cellHeaderMarkdownHover: {
+    display: 'flex',
+  },
   cellHeader: {
     display: 'flex',
     alignItems: 'center',
@@ -112,12 +141,33 @@ const useStyles = makeStyles({
     alignItems: 'center',
     ...shorthands.gap('8px'),
   },
+  // Floating action bar for markdown cells (appears top-right on hover)
+  markdownFloatingActions: {
+    position: 'absolute',
+    top: '8px',
+    right: '8px',
+    display: 'flex',
+    ...shorthands.gap('2px'),
+    ...shorthands.padding('4px'),
+    backgroundColor: tokens.colorNeutralBackground1,
+    ...shorthands.borderRadius('4px'),
+    boxShadow: tokens.shadow4,
+    opacity: 0,
+    transition: 'opacity 0.15s ease',
+    zIndex: 10,
+  },
+  markdownFloatingActionsVisible: {
+    opacity: 1,
+  },
+  // Container for markdown cell content with relative positioning
+  markdownCellContainer: {
+    position: 'relative',
+  },
   cellActions: {
     display: 'flex',
     ...shorthands.gap('2px'),
   },
   cellEditor: {
-    minHeight: '120px',
     ...shorthands.border('none'),
   },
   cellOutput: {
@@ -180,8 +230,8 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
   },
   markdownPreview: {
-    ...shorthands.padding('16px'),
-    minHeight: '60px',
+    ...shorthands.padding('16px', '16px'),
+    minHeight: '40px',
     cursor: 'pointer',
     '& h1': {
       fontSize: '24px',
@@ -801,11 +851,24 @@ export const NotebookEditor: React.FC<NotebookEditorProps> = ({
 
                 {/* Cell Card */}
                 <div 
-                  className={mergeClasses(styles.cellCard, selectedCellId === cell.id && styles.cellCardSelected)}
+                  className={mergeClasses(
+                    styles.cellCard, 
+                    // Code cells use standard selection
+                    cell.cellType === 'code' && selectedCellId === cell.id && styles.cellCardSelected,
+                    // Markdown cells in read mode blend with background (not selected, not editing)
+                    cell.cellType === 'markdown' && !cell.isEditing && selectedCellId !== cell.id && styles.cellCardMarkdownRead,
+                    // Markdown cells when selected (but not editing) show subtle border
+                    cell.cellType === 'markdown' && !cell.isEditing && selectedCellId === cell.id && styles.cellCardMarkdownSelected,
+                    // Markdown cells in edit mode show standard selection border
+                    cell.cellType === 'markdown' && cell.isEditing && styles.cellCardSelected
+                  )}
                   onClick={() => onSelectCell?.(cell.id)}
                 >
-                  {/* Cell Header */}
-                  <div className={styles.cellHeader}>
+                  {/* Cell Header - hidden for markdown cells in read mode when not selected */}
+                  <div className={mergeClasses(
+                    styles.cellHeader,
+                    cell.cellType === 'markdown' && !cell.isEditing && selectedCellId !== cell.id && styles.cellHeaderMarkdownRead
+                  )}>
                     <div className={styles.cellHeaderLeft}>
                       <Text className={styles.cellNumber}>
                         [{index + 1}]
@@ -937,10 +1000,10 @@ export const NotebookEditor: React.FC<NotebookEditorProps> = ({
 
                   {/* Cell Content - Code Editor or Markdown */}
                   {cell.cellType === 'code' ? (
-                    // Code Cell Editor
+                    // Code Cell Editor - auto-sizes based on content
                     <div className={styles.cellEditor}>
                       <Editor
-                        height="120px"
+                        height={Math.max(60, Math.min(600, (cell.code.split('\n').length + 1) * 19)) + 'px'}
                         defaultLanguage="python"
                         value={cell.code}
                         onChange={(value) => onCellCodeChange?.(cell.id, value || '')}
@@ -955,14 +1018,23 @@ export const NotebookEditor: React.FC<NotebookEditorProps> = ({
                           folding: true,
                           lineNumbersMinChars: 3,
                           glyphMargin: false,
+                          automaticLayout: true,
                         }}
                       />
                     </div>
                   ) : cell.isEditing ? (
-                    // Markdown Cell in Edit Mode
-                    <div className={styles.cellEditor}>
+                    // Markdown Cell in Edit Mode - auto-sizes based on content
+                    <div 
+                      className={styles.cellEditor}
+                      onBlur={(e) => {
+                        // Check if the new focus target is outside this cell
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          onCellEditingChange?.(cell.id, false);
+                        }
+                      }}
+                    >
                       <Editor
-                        height="120px"
+                        height={Math.max(60, Math.min(600, (cell.code.split('\n').length + 1) * 19)) + 'px'}
                         defaultLanguage="markdown"
                         value={cell.code}
                         onChange={(value) => onCellCodeChange?.(cell.id, value || '')}
@@ -977,31 +1049,116 @@ export const NotebookEditor: React.FC<NotebookEditorProps> = ({
                           folding: false,
                           lineNumbersMinChars: 3,
                           glyphMargin: false,
+                          automaticLayout: true,
                         }}
                         onMount={(editor) => {
-                          // Exit edit mode when clicking outside
-                          editor.onDidBlurEditorText(() => {
-                            onCellEditingChange?.(cell.id, false);
+                          // Focus the editor when entering edit mode
+                          editor.focus();
+                          // Exit edit mode when editor loses focus
+                          editor.onDidBlurEditorWidget(() => {
+                            // Small delay to allow click events to process first
+                            setTimeout(() => {
+                              if (!editor.hasWidgetFocus()) {
+                                onCellEditingChange?.(cell.id, false);
+                              }
+                            }, 100);
                           });
                         }}
                       />
                     </div>
                   ) : (
                     // Markdown Cell in Preview Mode
-                    <div 
-                      className={styles.markdownPreview}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onCellEditingChange?.(cell.id, true);
-                      }}
-                    >
-                      {cell.code.trim() ? (
-                        <div dangerouslySetInnerHTML={{ __html: renderMarkdown(cell.code) }} />
-                      ) : (
-                        <Text className={styles.markdownPlaceholder}>
-                          Click to add markdown content...
-                        </Text>
-                      )}
+                    <div className={styles.markdownCellContainer}>
+                      {/* Floating action bar for markdown cells */}
+                      <div 
+                        className={mergeClasses(
+                          styles.markdownFloatingActions,
+                          (selectedCellId === cell.id) && styles.markdownFloatingActionsVisible
+                        )}
+                      >
+                        <Tooltip content="Edit" relationship="label">
+                          <Button
+                            appearance="subtle"
+                            size="small"
+                            icon={<Edit16Regular />}
+                            onClick={(e: React.MouseEvent) => { 
+                              e.stopPropagation(); 
+                              onCellEditingChange?.(cell.id, true);
+                            }}
+                          />
+                        </Tooltip>
+                        <Tooltip content="Convert to code" relationship="label">
+                          <Button
+                            appearance="subtle"
+                            size="small"
+                            icon={<Code16Regular />}
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              onCellTypeChange?.(cell.id, 'code');
+                            }}
+                          />
+                        </Tooltip>
+                        <Menu>
+                          <MenuTrigger disableButtonEnhancement>
+                            <Button
+                              appearance="subtle"
+                              size="small"
+                              icon={<MoreHorizontal16Regular />}
+                            />
+                          </MenuTrigger>
+                          <MenuPopover>
+                            <MenuList>
+                              <MenuItem 
+                                icon={<ArrowUp16Regular />}
+                                onClick={() => onMoveCell?.(cell.id, 'up')}
+                                disabled={cells.findIndex(c => c.id === cell.id) === 0}
+                              >
+                                Move up
+                              </MenuItem>
+                              <MenuItem 
+                                icon={<ArrowDown16Regular />}
+                                onClick={() => onMoveCell?.(cell.id, 'down')}
+                                disabled={cells.findIndex(c => c.id === cell.id) === cells.length - 1}
+                              >
+                                Move down
+                              </MenuItem>
+                              <MenuItem 
+                                icon={<Delete16Regular />}
+                                onClick={() => onCellDelete?.(cell.id)}
+                              >
+                                Delete cell
+                              </MenuItem>
+                            </MenuList>
+                          </MenuPopover>
+                        </Menu>
+                        <Tooltip content="Delete" relationship="label">
+                          <Button
+                            appearance="subtle"
+                            size="small"
+                            icon={<Delete16Regular />}
+                            onClick={(e: React.MouseEvent) => { 
+                              e.stopPropagation(); 
+                              onCellDelete?.(cell.id);
+                            }}
+                          />
+                        </Tooltip>
+                      </div>
+                      
+                      <div 
+                        className={styles.markdownPreview}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCellEditingChange?.(cell.id, true);
+                        }}
+                      >
+                        {cell.code.trim() ? (
+                          <div dangerouslySetInnerHTML={{ __html: renderMarkdown(cell.code) }} />
+                        ) : (
+                          <Text className={styles.markdownPlaceholder}>
+                            Click to add markdown content...
+                          </Text>
+                        )}
+                      </div>
                     </div>
                   )}
 
