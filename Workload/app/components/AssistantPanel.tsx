@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Button,
   Text,
-  Input,
-  Divider,
+  Textarea,
   Badge,
-  ProgressBar,
   makeStyles,
   tokens,
   shorthands,
@@ -14,11 +12,15 @@ import {
   Switch,
 } from '@fluentui/react-components';
 import {
-  Sparkle24Regular,
-  Play24Regular,
-  CheckmarkCircle24Filled,
-  ErrorCircle24Filled,
-  Clock24Regular,
+  Sparkle20Regular,
+  Sparkle20Filled,
+  Send20Regular,
+  Play16Regular,
+  Checkmark16Regular,
+  Dismiss16Regular,
+  Person20Regular,
+  Code20Regular,
+  ArrowClockwise16Regular,
 } from '@fluentui/react-icons';
 import { AssistantPlan, AssistantStep } from '../clients/AzureOpenAIClient';
 
@@ -31,94 +33,251 @@ const useStyles = makeStyles({
     ...shorthands.borderLeft('1px', 'solid', tokens.colorNeutralStroke1),
   },
   header: {
-    ...shorthands.padding('16px'),
-    backgroundColor: tokens.colorNeutralBackground3,
+    ...shorthands.padding('12px', '16px'),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    ...shorthands.borderBottom('1px', 'solid', tokens.colorNeutralStroke2),
+  },
+  headerLeft: {
     display: 'flex',
     alignItems: 'center',
     ...shorthands.gap('8px'),
   },
-  content: {
+  copilotIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '28px',
+    height: '28px',
+    ...shorthands.borderRadius('6px'),
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
+  },
+  messagesContainer: {
     flexGrow: 1,
-    ...shorthands.padding('16px'),
     ...shorthands.overflow('auto'),
+    ...shorthands.padding('16px'),
     display: 'flex',
     flexDirection: 'column',
     ...shorthands.gap('16px'),
   },
-  goalSection: {
-    ...shorthands.padding('12px'),
-    backgroundColor: tokens.colorBrandBackground2,
-    ...shorthands.borderRadius('8px'),
+  welcomeContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100%',
+    ...shorthands.padding('24px'),
+    textAlign: 'center',
   },
-  inputSection: {
+  welcomeIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '48px',
+    height: '48px',
+    ...shorthands.borderRadius('12px'),
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
+    marginBottom: '16px',
+  },
+  welcomeTitle: {
+    marginBottom: '8px',
+  },
+  welcomeSubtitle: {
+    color: tokens.colorNeutralForeground3,
+    marginBottom: '24px',
+  },
+  suggestionChips: {
+    display: 'flex',
+    flexDirection: 'column',
+    ...shorthands.gap('8px'),
+    width: '100%',
+  },
+  suggestionChip: {
+    textAlign: 'left',
+    justifyContent: 'flex-start',
+  },
+  messageRow: {
+    display: 'flex',
+    ...shorthands.gap('12px'),
+  },
+  messageRowUser: {
+    flexDirection: 'row-reverse',
+  },
+  avatar: {
+    width: '28px',
+    height: '28px',
+    ...shorthands.borderRadius('50%'),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarAssistant: {
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
+  },
+  avatarUser: {
+    backgroundColor: tokens.colorNeutralBackground3,
+    color: tokens.colorNeutralForeground1,
+  },
+  messageBubble: {
+    maxWidth: '85%',
+    ...shorthands.padding('10px', '14px'),
+    ...shorthands.borderRadius('12px'),
+  },
+  messageBubbleAssistant: {
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderTopLeftRadius: '4px',
+  },
+  messageBubbleUser: {
+    backgroundColor: tokens.colorBrandBackground2,
+    borderTopRightRadius: '4px',
+  },
+  messageContent: {
     display: 'flex',
     flexDirection: 'column',
     ...shorthands.gap('8px'),
   },
-  stepsSection: {
-    display: 'flex',
-    flexDirection: 'column',
-    ...shorthands.gap('12px'),
-  },
   stepCard: {
     ...shorthands.padding('12px'),
+    ...shorthands.borderRadius('8px'),
     backgroundColor: tokens.colorNeutralBackground1,
-    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke1),
-    ...shorthands.borderRadius('6px'),
+    ...shorthands.border('1px', 'solid', tokens.colorNeutralStroke2),
+    marginTop: '8px',
   },
-  stepCardCurrent: {
-    ...shorthands.border('2px', 'solid', tokens.colorBrandStroke1),
-    backgroundColor: tokens.colorBrandBackground2Hover,
+  stepCardActive: {
+    ...shorthands.border('1px', 'solid', tokens.colorBrandStroke1),
+    backgroundColor: tokens.colorBrandBackground2,
   },
   stepCardCompleted: {
-    backgroundColor: tokens.colorNeutralBackground2,
+    ...shorthands.border('1px', 'solid', tokens.colorPaletteGreenBorder1),
+    backgroundColor: tokens.colorPaletteGreenBackground1,
+  },
+  stepCardFailed: {
+    ...shorthands.border('1px', 'solid', tokens.colorPaletteRedBorder1),
+    backgroundColor: tokens.colorPaletteRedBackground1,
   },
   stepHeader: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: '8px',
+    marginBottom: '6px',
   },
-  stepStatus: {
+  stepTitle: {
     display: 'flex',
     alignItems: 'center',
     ...shorthands.gap('6px'),
   },
-  stepDescription: {
+  stepNumber: {
+    width: '20px',
+    height: '20px',
+    ...shorthands.borderRadius('50%'),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: 600,
+  },
+  stepNumberPending: {
+    backgroundColor: tokens.colorNeutralBackground5,
+    color: tokens.colorNeutralForeground2,
+  },
+  stepNumberActive: {
+    backgroundColor: tokens.colorBrandBackground,
+    color: tokens.colorNeutralForegroundOnBrand,
+  },
+  stepNumberCompleted: {
+    backgroundColor: tokens.colorPaletteGreenBackground3,
+    color: tokens.colorPaletteGreenForeground1,
+  },
+  stepNumberFailed: {
+    backgroundColor: tokens.colorPaletteRedBackground3,
+    color: tokens.colorPaletteRedForeground1,
+  },
+  codeBlock: {
+    backgroundColor: tokens.colorNeutralBackground4,
+    ...shorthands.borderRadius('6px'),
+    ...shorthands.padding('10px', '12px'),
+    marginTop: '8px',
+    position: 'relative',
+    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+    fontSize: '12px',
+    ...shorthands.overflow('auto'),
+    maxHeight: '150px',
+  },
+  codeHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: '8px',
   },
-  stepResult: {
-    ...shorthands.padding('8px'),
-    backgroundColor: tokens.colorNeutralBackground3,
-    ...shorthands.borderRadius('4px'),
+  codeLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap('4px'),
+    color: tokens.colorNeutralForeground3,
+  },
+  resultBlock: {
+    backgroundColor: tokens.colorNeutralBackground2,
+    ...shorthands.borderRadius('6px'),
+    ...shorthands.padding('8px', '12px'),
+    marginTop: '8px',
     fontSize: '12px',
-    fontFamily: 'monospace',
+  },
+  executingIndicator: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap('8px'),
+    color: tokens.colorBrandForeground1,
     marginTop: '8px',
   },
-  stepError: {
-    ...shorthands.padding('8px'),
-    backgroundColor: tokens.colorPaletteRedBackground1,
-    ...shorthands.borderRadius('4px'),
+  actionButtons: {
+    display: 'flex',
+    ...shorthands.gap('8px'),
     marginTop: '8px',
   },
-  footer: {
-    ...shorthands.padding('16px'),
-    ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke1),
+  progressRow: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap('8px'),
+    ...shorthands.padding('8px', '12px'),
+    backgroundColor: tokens.colorNeutralBackground2,
+    ...shorthands.borderRadius('8px'),
+  },
+  inputContainer: {
+    ...shorthands.padding('12px', '16px'),
+    ...shorthands.borderTop('1px', 'solid', tokens.colorNeutralStroke2),
     display: 'flex',
     flexDirection: 'column',
     ...shorthands.gap('8px'),
   },
-  progressSection: {
-    marginBottom: '8px',
+  inputRow: {
+    display: 'flex',
+    ...shorthands.gap('8px'),
+    alignItems: 'flex-end',
   },
-  emptyState: {
+  textareaWrapper: {
+    flexGrow: 1,
     display: 'flex',
     flexDirection: 'column',
+  },
+  textarea: {
+    minHeight: '40px',
+    maxHeight: '120px',
+    resize: 'none',
+  },
+  footerControls: {
+    display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    ...shorthands.padding('32px'),
-    textAlign: 'center',
-    ...shorthands.gap('12px'),
+    justifyContent: 'space-between',
+  },
+  agentModeToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    ...shorthands.gap('8px'),
   },
 });
 
@@ -143,212 +302,315 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
 }) => {
   const styles = useStyles();
   const [taskInput, setTaskInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const getStepIcon = (status: AssistantStep['status']) => {
-    switch (status) {
-      case 'completed':
-        return <CheckmarkCircle24Filled style={{ color: tokens.colorPaletteGreenForeground1 }} />;
-      case 'failed':
-        return <ErrorCircle24Filled style={{ color: tokens.colorPaletteRedForeground1 }} />;
-      case 'running':
-        return <Spinner size="tiny" />;
-      case 'pending':
-      default:
-        return <Clock24Regular style={{ color: tokens.colorNeutralForeground3 }} />;
-    }
-  };
+  // Auto-scroll to bottom when plan updates
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [plan]);
 
-  const getStepBadge = (status: AssistantStep['status']) => {
-    const colorMap = {
-      completed: 'success' as const,
-      failed: 'danger' as const,
-      running: 'important' as const,
-      pending: 'subtle' as const,
-    };
-    return <Badge appearance="filled" color={colorMap[status]}>{status}</Badge>;
-  };
-
-  const handleGeneratePlan = () => {
+  const handleSubmit = () => {
     if (taskInput.trim() && onGeneratePlan) {
       onGeneratePlan(taskInput.trim());
+      setTaskInput('');
     }
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const suggestions = [
+    "Analyze sales data and find trends",
+    "Create a summary of the dataset",
+    "Find top 10 records by value",
+  ];
 
   const currentStep = plan?.steps[plan.currentStepIndex];
   const completedSteps = plan?.steps.filter(s => s.status === 'completed').length || 0;
   const totalSteps = plan?.steps.length || 0;
-  const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
+  const allCompleted = completedSteps === totalSteps && totalSteps > 0;
+
+  const getStepCardClass = (step: AssistantStep, isCurrent: boolean) => {
+    if (step.status === 'failed') return `${styles.stepCard} ${styles.stepCardFailed}`;
+    if (step.status === 'completed') return `${styles.stepCard} ${styles.stepCardCompleted}`;
+    if (isCurrent || step.status === 'running') return `${styles.stepCard} ${styles.stepCardActive}`;
+    return styles.stepCard;
+  };
+
+  const getStepNumberClass = (step: AssistantStep, isCurrent: boolean) => {
+    if (step.status === 'failed') return `${styles.stepNumber} ${styles.stepNumberFailed}`;
+    if (step.status === 'completed') return `${styles.stepNumber} ${styles.stepNumberCompleted}`;
+    if (isCurrent || step.status === 'running') return `${styles.stepNumber} ${styles.stepNumberActive}`;
+    return `${styles.stepNumber} ${styles.stepNumberPending}`;
+  };
 
   return (
     <div className={styles.container}>
       {/* Header */}
       <div className={styles.header}>
-        <Sparkle24Regular />
-        <Text weight="semibold" size={400}>AI Assistant</Text>
+        <div className={styles.headerLeft}>
+          <div className={styles.copilotIcon}>
+            <Sparkle20Filled />
+          </div>
+          <Text weight="semibold" size={400}>Copilot</Text>
+        </div>
+        {plan && (
+          <Tooltip content="Start new conversation" relationship="label">
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<ArrowClockwise16Regular />}
+              onClick={onRegeneratePlan}
+            />
+          </Tooltip>
+        )}
       </div>
 
-      <Divider />
-
-      {/* Content */}
-      <div className={styles.content}>
-        {!plan && !isGeneratingPlan && (
-          <div className={styles.emptyState}>
-            <Sparkle24Regular style={{ fontSize: '48px', color: tokens.colorBrandForeground1 }} />
-            <Text size={500} weight="semibold">
-              Welcome to the AI Assistant
+      {/* Messages Area */}
+      <div className={styles.messagesContainer}>
+        {!plan && !isGeneratingPlan ? (
+          <div className={styles.welcomeContainer}>
+            <div className={styles.welcomeIcon}>
+              <Sparkle20Filled />
+            </div>
+            <Text size={500} weight="semibold" className={styles.welcomeTitle}>
+              How can I help you today?
             </Text>
-            <Text size={300}>
-              Describe your data analysis task, and I'll break it down into executable steps with PySpark code.
+            <Text size={300} className={styles.welcomeSubtitle}>
+              I can help you analyze data with PySpark. Describe what you'd like to do.
             </Text>
+            <div className={styles.suggestionChips}>
+              {suggestions.map((suggestion, idx) => (
+                <Button
+                  key={idx}
+                  appearance="outline"
+                  size="small"
+                  className={styles.suggestionChip}
+                  onClick={() => setTaskInput(suggestion)}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
           </div>
-        )}
-
-        {/* Task Input Section */}
-        {!plan && (
-          <div className={styles.inputSection}>
-            <Text weight="semibold">What would you like to analyze?</Text>
-            <Input
-              placeholder="e.g., Analyze sales data and find top performing products"
-              value={taskInput}
-              onChange={(e, data) => setTaskInput(data.value)}
-              disabled={isGeneratingPlan}
-            />
-            <Button
-              appearance="primary"
-              icon={<Sparkle24Regular />}
-              onClick={handleGeneratePlan}
-              disabled={!taskInput.trim() || isGeneratingPlan}
-            >
-              {isGeneratingPlan ? 'Generating Plan...' : 'Generate Plan'}
-            </Button>
-          </div>
-        )}
-
-        {/* Plan Display */}
-        {plan && (
+        ) : (
           <>
-            {/* Goal Section */}
-            <div className={styles.goalSection}>
-              <Text weight="semibold" size={300}>Goal:</Text>
-              <Text>{plan.goal}</Text>
-            </div>
+            {/* User's task message */}
+            {plan && (
+              <div className={`${styles.messageRow} ${styles.messageRowUser}`}>
+                <div className={`${styles.avatar} ${styles.avatarUser}`}>
+                  <Person20Regular />
+                </div>
+                <div className={`${styles.messageBubble} ${styles.messageBubbleUser}`}>
+                  <Text>{plan.goal}</Text>
+                </div>
+              </div>
+            )}
 
-            {/* Progress Section */}
-            <div className={styles.progressSection}>
-              <Text size={200}>
-                Progress: {completedSteps} of {totalSteps} steps completed
-              </Text>
-              <ProgressBar value={progress} max={100} />
-            </div>
+            {/* Generating indicator */}
+            {isGeneratingPlan && (
+              <div className={styles.messageRow}>
+                <div className={`${styles.avatar} ${styles.avatarAssistant}`}>
+                  <Sparkle20Regular />
+                </div>
+                <div className={`${styles.messageBubble} ${styles.messageBubbleAssistant}`}>
+                  <div className={styles.executingIndicator}>
+                    <Spinner size="tiny" />
+                    <Text size={300}>Creating your plan...</Text>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            {/* Steps Section */}
-            <div className={styles.stepsSection}>
-              <Text weight="semibold">Execution Plan:</Text>
-              {plan.steps.map((step, index) => {
-                const isCurrent = index === plan.currentStepIndex;
-                const cardClass = isCurrent
-                  ? `${styles.stepCard} ${styles.stepCardCurrent}`
-                  : step.status === 'completed'
-                  ? `${styles.stepCard} ${styles.stepCardCompleted}`
-                  : styles.stepCard;
+            {/* Assistant's plan response */}
+            {plan && (
+              <div className={styles.messageRow}>
+                <div className={`${styles.avatar} ${styles.avatarAssistant}`}>
+                  <Sparkle20Regular />
+                </div>
+                <div className={`${styles.messageBubble} ${styles.messageBubbleAssistant}`}>
+                  <div className={styles.messageContent}>
+                    <Text>
+                      I've created a plan with {totalSteps} steps to help you. 
+                      {allCompleted 
+                        ? " All steps are complete! ✨" 
+                        : " Let me know when you're ready to proceed."}
+                    </Text>
 
-                return (
-                  <div key={step.id} className={cardClass}>
-                    <div className={styles.stepHeader}>
-                      <div className={styles.stepStatus}>
-                        {getStepIcon(step.status)}
-                        <Text weight="semibold" size={300}>
-                          Step {index + 1}
+                    {/* Progress indicator */}
+                    {totalSteps > 0 && (
+                      <div className={styles.progressRow}>
+                        <Text size={200} weight="medium">
+                          Progress: {completedSteps}/{totalSteps}
                         </Text>
-                        {isCurrent && <Badge appearance="filled" color="brand">Current</Badge>}
-                      </div>
-                      {getStepBadge(step.status)}
-                    </div>
-                    <div className={styles.stepDescription}>
-                      <Text>{step.description}</Text>
-                    </div>
-                    {step.code && (
-                      <div className={styles.stepResult}>
-                        <Text size={200} weight="semibold">Generated Code:</Text>
-                        <pre style={{ margin: '4px 0 0 0', whiteSpace: 'pre-wrap' }}>
-                          {step.code.substring(0, 100)}
-                          {step.code.length > 100 && '...'}
-                        </pre>
-                      </div>
-                    )}
-                    {step.result && (
-                      <div className={styles.stepResult}>
-                        <Text size={200} weight="semibold">Result:</Text>
-                        <Text size={200}>{step.result}</Text>
+                        <div style={{ 
+                          flexGrow: 1, 
+                          height: '4px', 
+                          backgroundColor: tokens.colorNeutralBackground5,
+                          borderRadius: '2px',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{ 
+                            width: `${(completedSteps / totalSteps) * 100}%`, 
+                            height: '100%', 
+                            backgroundColor: tokens.colorBrandBackground,
+                            transition: 'width 0.3s ease'
+                          }} />
+                        </div>
                       </div>
                     )}
-                    {step.error && (
-                      <div className={styles.stepError}>
-                        <Text size={200} weight="semibold">Error:</Text>
-                        <Text size={200}>{step.error}</Text>
+
+                    {/* Step cards */}
+                    {plan.steps.map((step, index) => {
+                      const isCurrent = index === plan.currentStepIndex;
+                      return (
+                        <div
+                          key={step.id}
+                          className={getStepCardClass(step, isCurrent)}
+                        >
+                          <div className={styles.stepHeader}>
+                            <div className={styles.stepTitle}>
+                              <div className={getStepNumberClass(step, isCurrent)}>
+                                {step.status === 'completed' ? (
+                                  <Checkmark16Regular />
+                                ) : step.status === 'failed' ? (
+                                  <Dismiss16Regular />
+                                ) : (
+                                  index + 1
+                                )}
+                              </div>
+                              <Text size={200} weight="semibold">
+                                Step {index + 1}
+                              </Text>
+                            </div>
+                            <Badge
+                              appearance="tint"
+                              size="small"
+                              color={
+                                step.status === 'completed' ? 'success' :
+                                step.status === 'failed' ? 'danger' :
+                                step.status === 'running' ? 'important' : 'subtle'
+                              }
+                            >
+                              {step.status}
+                            </Badge>
+                          </div>
+                          <Text size={200}>{step.description}</Text>
+
+                          {/* Code preview */}
+                          {step.code && (
+                            <div className={styles.codeBlock}>
+                              <div className={styles.codeHeader}>
+                                <div className={styles.codeLabel}>
+                                  <Code20Regular />
+                                  <Text size={100}>PySpark</Text>
+                                </div>
+                              </div>
+                              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                {step.code.length > 200 
+                                  ? step.code.substring(0, 200) + '...' 
+                                  : step.code}
+                              </pre>
+                            </div>
+                          )}
+
+                          {/* Result */}
+                          {step.result && (
+                            <div className={styles.resultBlock}>
+                              <Text size={200} weight="medium" style={{ color: tokens.colorPaletteGreenForeground1 }}>
+                                ✓ {step.result.substring(0, 150)}{step.result.length > 150 ? '...' : ''}
+                              </Text>
+                            </div>
+                          )}
+
+                          {/* Error */}
+                          {step.error && (
+                            <div className={styles.resultBlock} style={{ backgroundColor: tokens.colorPaletteRedBackground1 }}>
+                              <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>
+                                ✕ {step.error.substring(0, 150)}{step.error.length > 150 ? '...' : ''}
+                              </Text>
+                            </div>
+                          )}
+
+                          {/* Executing indicator */}
+                          {step.status === 'running' && (
+                            <div className={styles.executingIndicator}>
+                              <Spinner size="tiny" />
+                              <Text size={200}>Executing...</Text>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Action buttons */}
+                    {!allCompleted && currentStep && currentStep.status !== 'running' && (
+                      <div className={styles.actionButtons}>
+                        <Button
+                          appearance="primary"
+                          size="small"
+                          icon={<Play16Regular />}
+                          onClick={onProceedToNextStep}
+                        >
+                          {currentStep.status === 'pending' ? 'Run Step' : 'Next Step'}
+                        </Button>
                       </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </>
         )}
       </div>
 
-      {/* Footer */}
-      {plan && (
-        <div className={styles.footer}>
-          {currentStep && currentStep.status !== 'running' && (
-            <Tooltip
-              content={
-                currentStep.status === 'completed'
-                  ? 'Move to the next step'
-                  : 'Execute the current step'
-              }
-              relationship="label"
-            >
-              <Button
-                appearance="primary"
-                icon={<Play24Regular />}
-                onClick={onProceedToNextStep}
-                disabled={!onProceedToNextStep}
-              >
-                {currentStep.status === 'completed' ? 'Next Step' : 'Execute Step'}
-              </Button>
-            </Tooltip>
-          )}
-          {currentStep && currentStep.status === 'running' && (
-            <Button appearance="primary" disabled>
-              <Spinner size="tiny" style={{ marginRight: '8px' }} />
-              Executing...
-            </Button>
-          )}
-          {completedSteps === totalSteps && (
-            <Text size={300} style={{ color: tokens.colorPaletteGreenForeground1 }}>
-              ✓ All steps completed!
-            </Text>
-          )}
-          <Divider style={{ margin: '8px 0' }} />
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Tooltip 
-              content="When enabled, automatically executes the next step after each successful execution"
-              relationship="description"
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Switch 
-                  checked={agentMode || false}
-                  onChange={(_, data) => onAgentModeChange?.(data.checked)}
-                />
-                <Text size={200} weight="semibold">Agent Mode</Text>
-              </div>
-            </Tooltip>
+      {/* Input Area */}
+      <div className={styles.inputContainer}>
+        <div className={styles.inputRow}>
+          <div className={styles.textareaWrapper}>
+            <Textarea
+              className={styles.textarea}
+              placeholder="Ask Copilot to analyze your data..."
+              value={taskInput}
+              onChange={(e, data) => setTaskInput(data.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isGeneratingPlan}
+              resize="vertical"
+            />
           </div>
-          <Button appearance="subtle" onClick={onRegeneratePlan} disabled={isGeneratingPlan}>
-            Start New Task
-          </Button>
+          <Tooltip content="Send message" relationship="label">
+            <Button
+              appearance="primary"
+              icon={<Send20Regular />}
+              onClick={handleSubmit}
+              disabled={!taskInput.trim() || isGeneratingPlan}
+            />
+          </Tooltip>
         </div>
-      )}
+        <div className={styles.footerControls}>
+          <Tooltip
+            content="Automatically execute all steps without waiting"
+            relationship="description"
+          >
+            <div className={styles.agentModeToggle}>
+              <Switch
+                checked={agentMode || false}
+                onChange={(_, data) => onAgentModeChange?.(data.checked)}
+              />
+              <Text size={200}>Agent Mode</Text>
+            </div>
+          </Tooltip>
+          <Text size={100} style={{ color: tokens.colorNeutralForeground4 }}>
+            Shift + Enter for new line
+          </Text>
+        </div>
+      </div>
     </div>
   );
 };
