@@ -1,0 +1,39 @@
+{
+    "name": "Snake",
+    "version": "1.100",
+    "displayName": "SnakeItem_DisplayName",
+    "displayNamePlural": "SnakeItem_DisplayName_Plural",
+    "editor": {
+      "path": "/SnakeItem-editor"
+    },
+    "icon": {
+      "name": "assets/images/SnakeItem-icon.png"
+    },
+    "activeIcon": {
+      "name": "assets/images/SnakeItem-icon.png"
+    },
+    "contextMenuItems": [
+    ],
+    "quickActionItems": [
+    ],
+    "supportedInMonitoringHub": true,
+    "supportedInDatahubL1": true,
+    "itemJobActionConfig": {
+    },
+    "itemSettings": {
+      "getItemSettings": {
+            "action": "getItemSettings"
+      }
+    },
+    "editorTab": {
+      "onDeactivate": "item.tab.onDeactivate",
+      "canDeactivate": "item.tab.canDeactivate",
+      "canDestroy": "item.tab.canDestroy",
+      "onDestroy": "item.tab.onDestroy",
+      "onDelete": "item.tab.onDelete"
+    },
+    "createItemDialogConfig": {
+      "onCreationFailure": { "action": "item.onCreationFailure" },
+      "onCreationSuccess": { "action": "item.onCreationSuccess" }
+    }
+  }

@@ -25,6 +25,14 @@
     "AINotebookItemEditor_Ribbon_Notebook_Label": "Notebook",
     "AINotebookItem_DisplayName": "AI Notebook",
     "AINotebookItem_DisplayName_Plural": "AI Notebooks",
-    "AINotebookItem_Description": "An AI-powered notebook for data exploration with code execution and AI assistant"
+    "AINotebookItem_Description": "An AI-powered notebook for data exploration with code execution and AI assistant",
+    "SnakeItemEditor_Title": "Fabric Snake Game",
+    "SnakeItemEditor_Loading": "Loading Snake Game...",
+    "SnakeItemEditor_Ribbon_Game_Label": "🐍 Game",
+    "SnakeItemEditor_Ribbon_Save_Tooltip": "Save High Score",
+    "SnakeItemEditor_Saved_Text": "High Score: {{highScore}} | Competitors Eaten: {{totalEaten}}",
+    "SnakeItem_DisplayName": "Fabric Snake",
+    "SnakeItem_DisplayName_Plural": "Fabric Snake Games",
+    "SnakeItem_Description": "A fun snake game where Microsoft Fabric eats the competition!"
 }
   

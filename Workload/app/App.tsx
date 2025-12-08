@@ -4,6 +4,7 @@ import { History } from "history";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { HelloWorldItemEditor } from "./items/HelloWorldItem/HelloWorldItemEditor";
 import { AINotebookItemEditor } from "./items/AINotebookItem/AINotebookItemEditor";
+import { SnakeItemEditor } from "./items/SnakeItem/SnakeItemEditor";
 import { PackageInstallerItemEditor } from "./items/PackageInstallerItem/PackageInstallerItemEditor";
 import { PackageInstallerDeployDialogWrapper } from "./items/PackageInstallerItem/components/PackageInstallerDeployDialog";
 import { PackageInstallerPackagingDialogWrapper } from "./items/PackageInstallerItem/components/PackageInstallerPackagingDialogWrapper";
@@ -63,6 +64,12 @@ export function App({ history, workloadClient }: AppProps) {
             <Route path="/AINotebookItem-editor/:itemObjectId">
                 <AINotebookItemEditor
                     workloadClient={workloadClient} data-testid="AINotebookItem-editor" />
+            </Route>
+            
+            {/* Routings for the Snake Game Item Editor */}
+            <Route path="/SnakeItem-editor/:itemObjectId">
+                <SnakeItemEditor
+                    workloadClient={workloadClient} data-testid="SnakeItem-editor" />
             </Route>
             
             <Route path="/PackageInstallerItem-editor/:itemObjectId">
