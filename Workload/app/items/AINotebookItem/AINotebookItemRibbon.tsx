@@ -7,35 +7,29 @@ import {
 import {
   Save24Regular,
   Settings24Regular,
-  Rocket24Regular
 } from "@fluentui/react-icons";
 import { PageProps } from '../../App';
-import { CurrentView, VIEW_TYPES } from "./HelloWorldItemModel";
+import { CurrentView } from "./AINotebookItemModel";
 import { useTranslation } from "react-i18next";
 import '../../styles.scss';
 
 /**
- * Props interface for the Empty State Ribbon component
+ * Props interface for the AI Notebook Ribbon component
  */
-export interface HelloWorldItemRibbonProps extends PageProps {
+export interface AINotebookItemRibbonProps extends PageProps {
   isSaveButtonEnabled?: boolean;
   currentView: CurrentView;
   saveItemCallback: () => Promise<void>;
   openSettingsCallback: () => Promise<void>;
-  navigateToGettingStartedCallback: () => void;
 }
 
 
-const HelloWorldItemTabToolbar: React.FC<HelloWorldItemRibbonProps> = (props) => {
+const AINotebookItemTabToolbar: React.FC<AINotebookItemRibbonProps> = (props) => {
   const { t } = useTranslation();
 
 
   const handleSettingsClick = async () => {
     await props.openSettingsCallback();
-  };
-
-  const handleGettingStartedClick = () => {
-    props.navigateToGettingStartedCallback();
   };
 
   async function onSaveAsClicked() {
@@ -45,7 +39,7 @@ const HelloWorldItemTabToolbar: React.FC<HelloWorldItemRibbonProps> = (props) =>
 
   return (
     <Toolbar>
-      {/* Save Button - Disabled */}
+      {/* Save Button */}
       <Tooltip
         content={t("ItemEditor_Ribbon_Save_Label")}
         relationship="label">
@@ -69,43 +63,27 @@ const HelloWorldItemTabToolbar: React.FC<HelloWorldItemRibbonProps> = (props) =>
           onClick={handleSettingsClick} 
         />
       </Tooltip>
-
-      {/* Getting Started Button */}
-      {props.currentView === VIEW_TYPES.EMPTY && (
-      <Tooltip
-        content={t("ItemEditor_Ribbon_GettingStarted_Label", "Getting Started")}
-        relationship="label">
-        <ToolbarButton
-          aria-label={t("ItemEditor_Ribbon_GettingStarted_Label", "Getting Started")}
-          data-testid="item-editor-getting-started-btn"
-          icon={<Rocket24Regular />}
-          onClick={handleGettingStartedClick}
-        />
-      </Tooltip>
-      )}
     </Toolbar>
   );
 };
 
 /**
- * Main Ribbon component
+ * Main Ribbon component for AI Notebook
  */
-export function HelloWorldItemRibbon(props: HelloWorldItemRibbonProps) {
+export function AINotebookItemRibbon(props: AINotebookItemRibbonProps) {
   const { t } = useTranslation();
 
   return (
     <div className="ribbon">
-      {props.currentView === VIEW_TYPES.EMPTY && (
-      <TabList defaultSelectedValue="home">
-        <Tab value="home" data-testid="home-tab-btn">
-          {t("ItemEditor_Ribbon_Home_Label")}
+      <TabList defaultSelectedValue="notebook">
+        <Tab value="notebook" data-testid="notebook-tab-btn">
+          {t("AINotebookItemEditor_Ribbon_Notebook_Label", "Notebook")}
         </Tab>
       </TabList>
-      )}
 
       {/* Toolbar Container */}
       <div className="toolbarContainer">
-        <HelloWorldItemTabToolbar {...props} />
+        <AINotebookItemTabToolbar {...props} />
       </div>
     </div>
   );

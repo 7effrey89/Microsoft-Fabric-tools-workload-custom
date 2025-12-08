@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { Stack } from "@fluentui/react";
 import { useTranslation } from "react-i18next";
@@ -7,33 +7,34 @@ import { ItemWithDefinition, getWorkloadItem, callGetItem, saveItemDefinition } 
 import { callOpenSettings } from "../../controller/SettingsController";
 import { callNotificationOpen } from "../../controller/NotificationController";
 import { ItemEditorLoadingProgressBar } from "../../controls/ItemEditorLoadingProgressBar";
-import { HelloWorldItemDefinition, VIEW_TYPES, CurrentView } from "./HelloWorldItemModel";
-import { HelloWorldItemEditorEmpty } from "./HelloWorldItemEditorEmpty";
-import { HelloWorldItemEditorDefault } from "./HelloWorldItemEditorDefault";
+import { AINotebookItemDefinition, VIEW_TYPES, CurrentView } from "./AINotebookItemModel";
+import { AINotebookItemEditorNotebook } from "./AINotebookItemEditorNotebook";
+import { AINotebookItemRibbon } from "./AINotebookItemRibbon";
+import { NotebookCell } from "../../components/NotebookEditor";
+import { AssistantPlan } from "../../clients/AzureOpenAIClient";
 import "../../styles.scss";
-import { HelloWorldItemRibbon } from "./HelloWorldItemRibbon";
 
 
-export function HelloWorldItemEditor(props: PageProps) {
+export function AINotebookItemEditor(props: PageProps) {
   const { workloadClient } = props;
   const pageContext = useParams<ContextProps>();
   const { t } = useTranslation();
 
   // State management
   const [isLoading, setIsLoading] = useState(true);
-  const [item, setItem] = useState<ItemWithDefinition<HelloWorldItemDefinition>>();
-  const [currentView, setCurrentView] = useState<CurrentView>(VIEW_TYPES.EMPTY);
+  const [item, setItem] = useState<ItemWithDefinition<AINotebookItemDefinition>>();
+  const [currentView, setCurrentView] = useState<CurrentView>(VIEW_TYPES.NOTEBOOK);
   const [hasBeenSaved, setHasBeenSaved] = useState<boolean>(false);
 
   const { pathname } = useLocation();
 
   async function loadDataFromUrl(pageContext: ContextProps, pathname: string): Promise<void> {
     setIsLoading(true);
-    var LoadedItem: ItemWithDefinition<HelloWorldItemDefinition> = undefined;
+    var LoadedItem: ItemWithDefinition<AINotebookItemDefinition> = undefined;
     if (pageContext.itemObjectId) {
       // for Edit scenario we get the itemObjectId and then load the item via the workloadClient SDK
       try {
-        LoadedItem = await getWorkloadItem<HelloWorldItemDefinition>(
+        LoadedItem = await getWorkloadItem<AINotebookItemDefinition>(
           workloadClient,
           pageContext.itemObjectId,
         );
@@ -44,6 +45,10 @@ export function HelloWorldItemEditor(props: PageProps) {
             ...LoadedItem,
             definition: {
               state: undefined,
+              notebookCells: [],
+              assistantPlan: undefined,
+              lakehouseId: undefined,
+              lakehouseName: undefined,
             }
           };
         }
@@ -52,7 +57,7 @@ export function HelloWorldItemEditor(props: PageProps) {
         }
 
         setItem(LoadedItem);
-        setCurrentView(!LoadedItem?.definition?.state ? VIEW_TYPES.EMPTY : VIEW_TYPES.GETTING_STARTED);
+        setCurrentView(VIEW_TYPES.NOTEBOOK);
 
       } catch (error) {
         setItem(undefined);
@@ -72,10 +77,6 @@ export function HelloWorldItemEditor(props: PageProps) {
   }, [pageContext, pathname]);
 
 
-  const navigateToGettingStarted = () => {
-    setCurrentView(VIEW_TYPES.GETTING_STARTED);
-  };
-
   const handleOpenSettings = async () => {
     if (item) {
       try {
@@ -87,12 +88,49 @@ export function HelloWorldItemEditor(props: PageProps) {
     }
   };
 
+  const SaveNotebookData = useCallback(async (plan?: AssistantPlan, cells?: NotebookCell[]) => {
+    if (!item) return;
+    
+    const newDefinition: AINotebookItemDefinition = {
+      ...item.definition,
+      state: VIEW_TYPES.NOTEBOOK,
+      assistantPlan: plan || item.definition?.assistantPlan,
+      notebookCells: cells || item.definition?.notebookCells,
+    };
+
+    const successResult = await saveItemDefinition<AINotebookItemDefinition>(
+      workloadClient,
+      item.id,
+      newDefinition
+    );
+
+    const wasSaved = Boolean(successResult);
+    setHasBeenSaved(wasSaved);
+    
+    if (wasSaved) {
+      // Update local state with saved data
+      setItem(prev => prev ? {
+        ...prev,
+        definition: newDefinition
+      } : prev);
+    }
+
+    callNotificationOpen(
+      props.workloadClient,
+      t("ItemEditor_Saved_Notification_Title"),
+      t("ItemEditor_Saved_Notification_Text", { itemName: item.displayName }),
+      undefined,
+      undefined
+    );
+  }, [item, workloadClient, props.workloadClient, t]);
+
   async function SaveItem() {
-    var successResult = await saveItemDefinition<HelloWorldItemDefinition>(
+    var successResult = await saveItemDefinition<AINotebookItemDefinition>(
       workloadClient,
       item.id,
       {
-        state: VIEW_TYPES.GETTING_STARTED
+        ...item.definition,
+        state: VIEW_TYPES.NOTEBOOK
       });
     const wasSaved = Boolean(successResult);
     setHasBeenSaved(wasSaved);
@@ -106,23 +144,11 @@ export function HelloWorldItemEditor(props: PageProps) {
   }
 
   const isSaveEnabled = () => {
-    if (currentView === VIEW_TYPES.EMPTY) {
+    // In notebook view, save is always available if not just saved
+    if (hasBeenSaved) {
       return false;
     }
-
-    if (currentView === VIEW_TYPES.GETTING_STARTED) {
-      if (hasBeenSaved) {
-        return false;
-      }
-
-      if (!item?.definition?.state) {
-        return true;
-      }
-
-      return false;
-    }
-
-    return false;
+    return true;
   };
 
 
@@ -130,34 +156,26 @@ export function HelloWorldItemEditor(props: PageProps) {
   if (isLoading) {
     return (
       <ItemEditorLoadingProgressBar
-        message={t("HelloWorldItemEditor_Loading", "Loading item...")}
+        message={t("AINotebookItemEditor_Loading", "Loading AI Notebook...")}
       />
     );
   }
 
-  // Render appropriate view based on state
+  // Render notebook view
   return (
     <Stack className="editor" data-testid="item-editor-inner">
-      <HelloWorldItemRibbon
+      <AINotebookItemRibbon
         {...props}
         isSaveButtonEnabled={isSaveEnabled()}
         currentView={currentView}
         saveItemCallback={SaveItem}
         openSettingsCallback={handleOpenSettings}
-        navigateToGettingStartedCallback={navigateToGettingStarted}
       />
-      {currentView === VIEW_TYPES.EMPTY ? (
-        <HelloWorldItemEditorEmpty
-          workloadClient={workloadClient}
-          item={item}
-          onNavigateToGettingStarted={navigateToGettingStarted}
-        />
-      ) : (
-        <HelloWorldItemEditorDefault
-          workloadClient={workloadClient}
-          item={item}
-        />
-      )}
+      <AINotebookItemEditorNotebook
+        workloadClient={workloadClient}
+        item={item}
+        onSave={SaveNotebookData}
+      />
     </Stack>
   );
 }

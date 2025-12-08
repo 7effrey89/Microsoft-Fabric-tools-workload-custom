@@ -1,8 +1,9 @@
 # Fabric - Custom Notebook with custom-made Copilot Agent Mode 
 
-This custom made workload introduces a new Fabric Item called: AI Notebook Playground
+This custom made workload introduces a new Fabric Item called: AI Notebook
 
-![alt text](image.png)
+![alt text](Image\image-3.png)
+![alt text](Image\image-2.png)
 
 **Features:**
 

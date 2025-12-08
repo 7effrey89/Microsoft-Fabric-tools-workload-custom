@@ -3,6 +3,7 @@ import { Route, Router, Switch } from "react-router-dom";
 import { History } from "history";
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { HelloWorldItemEditor } from "./items/HelloWorldItem/HelloWorldItemEditor";
+import { AINotebookItemEditor } from "./items/AINotebookItem/AINotebookItemEditor";
 import { PackageInstallerItemEditor } from "./items/PackageInstallerItem/PackageInstallerItemEditor";
 import { PackageInstallerDeployDialogWrapper } from "./items/PackageInstallerItem/components/PackageInstallerDeployDialog";
 import { PackageInstallerPackagingDialogWrapper } from "./items/PackageInstallerItem/components/PackageInstallerPackagingDialogWrapper";
@@ -56,6 +57,12 @@ export function App({ history, workloadClient }: AppProps) {
             <Route path="/HelloWorldItem-editor/:itemObjectId">
                 <HelloWorldItemEditor
                     workloadClient={workloadClient} data-testid="HelloWorldItem-editor" />
+            </Route>
+            
+            {/* Routings for the AI Notebook Item Editor */}
+            <Route path="/AINotebookItem-editor/:itemObjectId">
+                <AINotebookItemEditor
+                    workloadClient={workloadClient} data-testid="AINotebookItem-editor" />
             </Route>
             
             <Route path="/PackageInstallerItem-editor/:itemObjectId">

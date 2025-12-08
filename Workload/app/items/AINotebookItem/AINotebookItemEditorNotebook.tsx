@@ -18,7 +18,7 @@ import {
 } from '@fluentui/react-icons';
 import { WorkloadClientAPI } from "@ms-fabric/workload-client";
 import { ItemWithDefinition } from "../../controller/ItemCRUDController";
-import { HelloWorldItemDefinition } from "./HelloWorldItemModel";
+import { AINotebookItemDefinition } from "./AINotebookItemModel";
 import { NotebookEditor, NotebookCell, CellType } from '../../components/NotebookEditor';
 import { AssistantPanel } from '../../components/AssistantPanel';
 import { AzureOpenAIClient, AssistantPlan, ModelId, DEFAULT_MODEL } from '../../clients/AzureOpenAIClient';
@@ -117,13 +117,13 @@ const useStyles = makeStyles({
   },
 });
 
-interface HelloWorldItemEditorNotebookProps {
+interface AINotebookItemEditorNotebookProps {
   workloadClient: WorkloadClientAPI;
-  item: ItemWithDefinition<HelloWorldItemDefinition>;
+  item: ItemWithDefinition<AINotebookItemDefinition>;
   onSave?: (plan?: AssistantPlan, cells?: NotebookCell[]) => Promise<void>;
 }
 
-export const HelloWorldItemEditorNotebook: React.FC<HelloWorldItemEditorNotebookProps> = ({
+export const AINotebookItemEditorNotebook: React.FC<AINotebookItemEditorNotebookProps> = ({
   workloadClient,
   item,
   onSave,
