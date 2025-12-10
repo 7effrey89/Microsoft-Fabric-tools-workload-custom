@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { PageProps, ContextProps } from "../../App";
 import { ItemWithDefinition, getWorkloadItem, callGetItem, saveItemDefinition } from "../../controller/ItemCRUDController";
 import { callOpenSettings } from "../../controller/SettingsController";
-import { callNotificationOpen } from "../../controller/NotificationController";
 import { ItemEditorLoadingProgressBar } from "../../controls/ItemEditorLoadingProgressBar";
 import { AINotebookItemDefinition, VIEW_TYPES, CurrentView } from "./AINotebookItemModel";
 import { AINotebookItemEditorNotebook } from "./AINotebookItemEditorNotebook";
@@ -114,14 +113,6 @@ export function AINotebookItemEditor(props: PageProps) {
         definition: newDefinition
       } : prev);
     }
-
-    callNotificationOpen(
-      props.workloadClient,
-      t("ItemEditor_Saved_Notification_Title"),
-      t("ItemEditor_Saved_Notification_Text", { itemName: item.displayName }),
-      undefined,
-      undefined
-    );
   }, [item, workloadClient, props.workloadClient, t]);
 
   async function SaveItem() {
@@ -134,13 +125,6 @@ export function AINotebookItemEditor(props: PageProps) {
       });
     const wasSaved = Boolean(successResult);
     setHasBeenSaved(wasSaved);
-    callNotificationOpen(
-      props.workloadClient,
-      t("ItemEditor_Saved_Notification_Title"),
-      t("ItemEditor_Saved_Notification_Text", { itemName: item.displayName }),
-      undefined,
-      undefined
-    );
   }
 
   const isSaveEnabled = () => {
