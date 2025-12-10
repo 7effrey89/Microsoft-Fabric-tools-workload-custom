@@ -19,13 +19,22 @@ The unique part of this fabric item is the right side: the copilot panel.
 
 The copilot panel enables both chat and agent mode as you know it from GitHub Copilot in VSCode.
 
-When a user ask a question a plan is generated to solve the request with each step highligted in the chat. The copilot will execute each step at time and evaluate the result before commening to the next step. 
+When a user ask a question a plan is generated to solve the request with each step highligted in the chat. The copilot (in agent mode) will execute each step at time and evaluate the result before commening to the next step. 
 
 This approach has many benefits compared to the existing solution in Fabric:
 
 - Improved Reliability: Compared to monolithic execution, this stepwise exeuction increases the probability of an ouput that is better aligned with the user-exepectation
 
 - Self-healing: When the execution plan is heading towards the wrong path, the agent will be able to correct itself and get back on-track making the process more flexible and resilient.
+
+- System Message: In the settings wheel for the copilot, you can define agent instructions to add additional context such as:
+  -  background knowledge that is helpful for the code generation or undestanding of your data,
+  -   useful code sample or queries
+  -   behavior control, and more  
+
+- Different Execution mode: Agent and Chat for automatic code generation and execution
+
+- Different LLM selection: Possibility to select different Large Language Models to execute generate code. New ones can be added easily.
 
 
 **Snake Game**
