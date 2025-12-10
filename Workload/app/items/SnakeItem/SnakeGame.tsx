@@ -126,14 +126,14 @@ const useStyles = makeStyles({
 
 // Competing products data with colors for icons (sorted by points)
 const COMPETITORS = [
-  { name: 'AWS Redshift', color: '#FF9900', letter: 'A', points: 20 },
-  { name: 'GCP BigQuery', color: '#4285F4', letter: 'G', points: 20 },
-  { name: 'Snowflake', color: '#29B5E8', letter: 'S', points: 15 },
-  { name: 'SAP Datasphere', color: '#0FAAFF', letter: 'P', points: 12 },
-  { name: 'Oracle Analytics', color: '#F80000', letter: 'O', points: 10 },
-  { name: 'Informatica', color: '#FF6D00', letter: 'I', points: 8 },
-  { name: 'Teradata Vantage', color: '#F37440', letter: 'T', points: 6 },
-  { name: 'Databricks', color: '#FF3621', letter: 'D', points: 5 },
+  { name: 'BookStore', color: '#FF9900', letter: 'A', points: 20 },
+  { name: 'BigG', color: '#4285F4', letter: 'G', points: 20 },
+  { name: 'ColdSnow', color: '#29B5E8', letter: 'S', points: 15 },
+  { name: 'TheERP', color: '#0FAAFF', letter: 'P', points: 12 },
+  { name: 'DinoDB', color: '#F80000', letter: 'O', points: 10 },
+  { name: 'SomeCata', color: '#FF6D00', letter: 'I', points: 8 },
+  { name: 'Tstore', color: '#F37440', letter: 'T', points: 6 },
+  { name: 'FriendBricks', color: '#FF3621', letter: 'D', points: 5 },
 ];
 
 // Microsoft Fabric gradient colors
@@ -614,12 +614,12 @@ export const SnakeGame: React.FC<SnakeGameProps> = ({ onScoreUpdate, initialHigh
         <ul className={styles.descriptionList} style={{ color: tokens.colorNeutralForeground2, fontSize: '13px' }}>
           <li><strong>Objective:</strong> Eat as many competing product icons as possible without hitting walls or yourself</li>
           <li><strong>Snake Colors:</strong> The snake displays Microsoft Fabric's signature gradient (Red → Green → Blue → Yellow)</li>
-          <li><strong>Competing Products:</strong> AWS Redshift, GCP BigQuery, Snowflake, SAP Datasphere, Oracle Analytics, Informatica, Teradata Vantage, and Databricks</li>
-          <li><strong>Scoring:</strong> Points reflect market position - cloud giants AWS Redshift & GCP BigQuery are worth the most!</li>
+          <li><strong>Competing Products:</strong> BookStore, BigG, ColdSnow, TheERP, DinoDB, SomeCata, Tstore, and FriendBricks</li>
+          <li><strong>Scoring:</strong> Points reflect market position - cloud giants BookStore & BigG are worth the most!</li>
           <li><strong>Speed:</strong> The game speeds up as you eat more products - just like real market competition!</li>
         </ul>
         <Text className={styles.descriptionText} style={{ marginTop: '8px', fontStyle: 'italic' }}>
-          💡 Pro tip: Focus on high-value targets like AWS Redshift (+20) and GCP BigQuery (+20) to maximize your score!
+          💡 Pro tip: Focus on high-value targets like BookStore (+20) and BigG (+20) to maximize your score!
         </Text>
         <Text className={styles.descriptionText} style={{ marginTop: '12px', fontSize: '11px', color: tokens.colorNeutralForeground4 }}>
           🤖 This game was entirely AI-generated using GitHub Copilot in VS Code.
