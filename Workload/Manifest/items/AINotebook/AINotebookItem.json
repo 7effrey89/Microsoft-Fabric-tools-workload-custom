@@ -1,0 +1,39 @@
+{
+    "name": "AINotebook",
+    "version": "1.100",
+    "displayName": "AINotebookItem_DisplayName",
+    "displayNamePlural": "AINotebookItem_DisplayName_Plural",
+    "editor": {
+      "path": "/AINotebookItem-editor"
+    },
+    "icon": {
+      "name": "assets/images/notebook_64_item_copilot.png"
+    },
+    "activeIcon": {
+      "name": "assets/images/notebook_64_item_copilot.png"
+    },
+    "contextMenuItems": [
+    ],
+    "quickActionItems": [
+    ],
+    "supportedInMonitoringHub": true,
+    "supportedInDatahubL1": true,
+    "itemJobActionConfig": {
+    },
+    "itemSettings": {
+      "getItemSettings": {
+            "action": "getItemSettings"
+      }
+    },
+    "editorTab": {
+      "onDeactivate": "item.tab.onDeactivate",
+      "canDeactivate": "item.tab.canDeactivate",
+      "canDestroy": "item.tab.canDestroy",
+      "onDestroy": "item.tab.onDestroy",
+      "onDelete": "item.tab.onDelete"
+    },
+    "createItemDialogConfig": {
+      "onCreationFailure": { "action": "item.onCreationFailure" },
+      "onCreationSuccess": { "action": "item.onCreationSuccess" }
+    }
+  }

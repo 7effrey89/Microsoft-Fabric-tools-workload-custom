@@ -30,7 +30,10 @@ module.exports = merge(baseConfig, {
             "process.env.DEV_AAD_CONFIG_BE_APPID": JSON.stringify(process.env.DEV_AAD_CONFIG_BE_APPID),
             "process.env.DEV_AAD_CONFIG_BE_AUDIENCE": JSON.stringify(process.env.DEV_AAD_CONFIG_BE_AUDIENCE),
             "process.env.DEV_AAD_CONFIG_BE_REDIRECT_URI": JSON.stringify(process.env.DEV_AAD_CONFIG_BE_REDIRECT_URI),
-            "NODE_ENV": JSON.stringify(process.env.NODE_ENV || "development")
+            "process.env.AZURE_OPENAI_ENDPOINT": JSON.stringify(process.env.AZURE_OPENAI_ENDPOINT),
+            "process.env.AZURE_OPENAI_API_KEY": JSON.stringify(process.env.AZURE_OPENAI_API_KEY),
+            "process.env.AZURE_OPENAI_DEPLOYMENT": JSON.stringify(process.env.AZURE_OPENAI_DEPLOYMENT),
+            "process.env.AZURE_OPENAI_API_VERSION": JSON.stringify(process.env.AZURE_OPENAI_API_VERSION)
         }),
     ],
     devServer: {

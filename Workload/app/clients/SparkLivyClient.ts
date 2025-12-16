@@ -193,10 +193,12 @@ export class SparkLivyClient extends FabricPlatformClient {
 
   /**
    * Create a new Livy session
+   * Note: Fabric Livy API uses async pattern - POST returns operationId, 
+   * then we need to list sessions to find the created session
    * @param workspaceId The workspace ID
    * @param lakehouseId The lakehouse ID
    * @param sessionRequest The session request parameters
-   * @returns A promise resolving to the session response
+   * @returns A promise resolving to the session response with id
    */
   async createSession(
     workspaceId: string,
@@ -205,11 +207,79 @@ export class SparkLivyClient extends FabricPlatformClient {
   ): Promise<SessionResponse> {
     try {
       const endpoint = `/workspaces/${workspaceId}/lakehouses/${lakehouseId}/livyApi/versions/${LIVY_API_VERSION}/sessions`;
-      return this.post<SessionResponse>(endpoint, sessionRequest);
+      // console.log(`[SparkLivyClient] Creating session at endpoint: ${endpoint}`);
+      // console.log(`[SparkLivyClient] Request body:`, JSON.stringify(sessionRequest, null, 2));
+      
+      const response = await this.post<any>(endpoint, sessionRequest);
+      // console.log(`[SparkLivyClient] Session creation raw response:`, JSON.stringify(response, null, 2));
+      // console.log(`[SparkLivyClient] Response keys:`, Object.keys(response || {}));
+      
+      // If we get a direct session ID, return it
+      if (response.id) {
+        // console.log(`[SparkLivyClient] Got direct session ID: ${response.id}`);
+        return response as SessionResponse;
+      }
+      
+      // If we get an operationId, we need to poll for the session
+      if (response.operationId) {
+        // console.log(`[SparkLivyClient] Got operationId: ${response.operationId}, polling for session...`);
+        
+        // Poll for the session to appear in the sessions list
+        const maxAttempts = 60; // 2 minutes max
+        const pollInterval = 2000; // 2 seconds
+        
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          // console.log(`[SparkLivyClient] Polling attempt ${attempt}/${maxAttempts}...`);
+          await this.sleep(pollInterval);
+          
+          try {
+            const sessions = await this.listSessions(workspaceId, lakehouseId);
+            // console.log(`[SparkLivyClient] Found ${sessions.length} sessions`);
+            
+            if (sessions.length > 0) {
+              // Log all sessions for debugging
+              // sessions.forEach((s: any, i: number) => {
+              //   console.log(`[SparkLivyClient] Session ${i}: id=${s.id}, livyState=${s.livyState}, state=${s.state}`);
+              // });
+              
+              // Look for a session that's in an active state
+              const activeSession = sessions.find((s: any) => {
+                const state = (s.livyState || s.state || '').toLowerCase();
+                return state === 'starting' || state === 'idle' || state === 'busy' || state === 'not_started';
+              });
+              
+              if (activeSession && activeSession.id) {
+                // console.log(`[SparkLivyClient] Found active session: ${activeSession.id} (livyState: ${(activeSession as any).livyState})`);
+                return activeSession;
+              }
+              
+              // If no active session found but we have sessions, return the first one with an ID
+              const sessionWithId = sessions.find((s: any) => s.id);
+              if (sessionWithId) {
+                // console.log(`[SparkLivyClient] Found session with ID: ${sessionWithId.id} (livyState: ${(sessionWithId as any).livyState})`);
+                return sessionWithId;
+              }
+            }
+          } catch (listError) {
+            // console.warn(`[SparkLivyClient] Error listing sessions during poll:`, listError);
+          }
+        }
+        
+        throw new Error(`Session creation timed out after ${maxAttempts * pollInterval / 1000} seconds`);
+      }
+      
+      throw new Error('No session ID or operationId returned from Livy');
     } catch (error: any) {
-      console.error(`Error creating session: ${error.message}`);
+      console.error(`[SparkLivyClient] Error creating session:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Helper to sleep for a given duration
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
@@ -224,9 +294,26 @@ export class SparkLivyClient extends FabricPlatformClient {
   ): Promise<SessionResponse[]> {
     try {
       const endpoint = `/workspaces/${workspaceId}/lakehouses/${lakehouseId}/livyApi/versions/${LIVY_API_VERSION}/sessions`;
-      return this.get<SessionResponse[]>(endpoint);
+      const response = await this.get<any>(endpoint);
+      // console.log(`[SparkLivyClient] listSessions raw response:`, JSON.stringify(response, null, 2));
+      
+      // Handle various response formats
+      if (Array.isArray(response)) {
+        return response;
+      }
+      if (response.value && Array.isArray(response.value)) {
+        return response.value;
+      }
+      if (response.sessions && Array.isArray(response.sessions)) {
+        return response.sessions;
+      }
+      if (response.id) {
+        return [response];
+      }
+      // console.warn(`[SparkLivyClient] Unexpected listSessions response format`);
+      return [];
     } catch (error: any) {
-      console.error(`Error listing sessions: ${error.message}`);
+      // console.error(`Error listing sessions: ${error.message}`);
       throw error;
     }
   }
@@ -314,9 +401,13 @@ export class SparkLivyClient extends FabricPlatformClient {
   ): Promise<StatementResponse> {
     try {
       const endpoint = `/workspaces/${workspaceId}/lakehouses/${lakehouseId}/livyApi/versions/${LIVY_API_VERSION}/sessions/${sessionId}/statements`;
-      return this.post<StatementResponse>(endpoint, statementRequest);
+      // console.log(`[SparkLivyClient] Submitting statement to: ${endpoint}`);
+      // console.log(`[SparkLivyClient] Statement request:`, JSON.stringify(statementRequest, null, 2));
+      const response = await this.post<StatementResponse>(endpoint, statementRequest);
+      // console.log(`[SparkLivyClient] Statement response:`, JSON.stringify(response, null, 2));
+      return response;
     } catch (error: any) {
-      console.error(`Error submitting statement to session ${sessionId}: ${error.message}`);
+      // console.error(`Error submitting statement to session ${sessionId}: ${error.message}`);
       throw error;
     }
   }

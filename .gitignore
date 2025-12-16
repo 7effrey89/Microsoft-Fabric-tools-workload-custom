@@ -421,3 +421,11 @@ Workload/node_modules/*
 Workload/package-lock.json
 Workload/dist/*
 
+
+# Environment files with secrets (keep .env.template files)
+Workload/.env.dev
+Workload/.env.prod
+Workload/.env.local
+*.env.local
+!*.env.template
+!Workload/.env.template

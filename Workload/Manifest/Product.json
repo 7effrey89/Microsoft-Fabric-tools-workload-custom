@@ -69,6 +69,48 @@
               "onCreationFailure": { "action": "item.onCreationFailure" },
               "onCreationSuccess": { "action": "item.onCreationSuccess" }
             }        
+          },
+          {
+            "title": "HelloWorldItem_DisplayName",
+            "description": "HelloWorldItem_Description",
+            "icon": {
+              "name": "assets/images/HelloWorldItem-icon.png"
+            },
+            "icon_small": {
+              "name": "assets/images/HelloWorldItem-icon.png"
+            },
+            "availableIn": [
+              "home",
+              "create-hub",
+              "workspace-plus-new",
+              "workspace-plus-new-teams"
+            ],
+            "itemType": "HelloWorld",
+            "createItemDialogConfig": {
+              "onCreationFailure": { "action": "item.onCreationFailure" },
+              "onCreationSuccess": { "action": "item.onCreationSuccess" }
+            }        
+          },
+          {
+            "title": "AINotebookItem_DisplayName",
+            "description": "AINotebookItem_Description",
+            "icon": {
+              "name": "assets/images/notebook_64_item_copilot.png"
+            },
+            "icon_small": {
+              "name": "assets/images/notebook_64_item_copilot.png"
+            },
+            "availableIn": [
+              "home",
+              "create-hub",
+              "workspace-plus-new",
+              "workspace-plus-new-teams"
+            ],
+            "itemType": "AINotebook",
+            "createItemDialogConfig": {
+              "onCreationFailure": { "action": "item.onCreationFailure" },
+              "onCreationSuccess": { "action": "item.onCreationSuccess" }
+            }        
           }
         ]
     },

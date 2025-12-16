@@ -700,6 +700,10 @@ export interface StatementOutput {
     status: string;
     execution_count: number;
     data?: any;
+    // Error fields returned by Livy when status is 'error'
+    ename?: string;      // Exception name (e.g., "SyntaxError", "NameError")
+    evalue?: string;     // Exception value/message
+    traceback?: string[]; // Stack trace lines
 }
 
 export interface StatementResponse {

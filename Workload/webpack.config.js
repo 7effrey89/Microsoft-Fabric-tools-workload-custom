@@ -28,7 +28,11 @@ module.exports = {
             "process.env.WORKLOAD_NAME": JSON.stringify(process.env.WORKLOAD_NAME),
             "process.env.ITEM_NAMES": JSON.stringify(process.env.ITEM_NAMES),
             "process.env.WORKLOAD_VERSION": JSON.stringify(process.env.WORKLOAD_VERSION),
-            "process.env.LOG_LEVEL": JSON.stringify(process.env.LOG_LEVEL)
+            "process.env.LOG_LEVEL": JSON.stringify(process.env.LOG_LEVEL),
+            "process.env.AZURE_OPENAI_ENDPOINT": JSON.stringify(process.env.AZURE_OPENAI_ENDPOINT),
+            "process.env.AZURE_OPENAI_API_KEY": JSON.stringify(process.env.AZURE_OPENAI_API_KEY),
+            "process.env.AZURE_OPENAI_DEPLOYMENT": JSON.stringify(process.env.AZURE_OPENAI_DEPLOYMENT),
+            "process.env.AZURE_OPENAI_API_VERSION": JSON.stringify(process.env.AZURE_OPENAI_API_VERSION)
         }),
         new HtmlWebpackPlugin({
             template: "./app/index.html",

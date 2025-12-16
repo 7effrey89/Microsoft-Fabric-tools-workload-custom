@@ -19,6 +19,12 @@
     "HelloWorldItemEditor_Definition_Message_Label": "Item Definition",
     "HelloWorldItemEditor_LoadingProgressBar_Text": "Loading Hello World item ...",
     "HelloWorldItemEditorEmpty_Message": "Let's say hello to {{itemName}}!",
-    "HelloWorldItemEditorEmpty_Button": "Save item"
+    "HelloWorldItemEditorEmpty_Button": "Save item",
+    "AINotebookItemEditor_Title": "AI Notebook Editor",
+    "AINotebookItemEditor_Loading": "Loading AI Notebook...",
+    "AINotebookItemEditor_Ribbon_Notebook_Label": "Notebook",
+    "AINotebookItem_DisplayName": "AI Notebook",
+    "AINotebookItem_DisplayName_Plural": "AI Notebooks",
+    "AINotebookItem_Description": "An AI-powered notebook for data exploration with code execution and AI assistant"
 }
   
